@@ -39,7 +39,7 @@ def compile_by(target:)
     "BY_SOCKET" => READY_SOCKET.to_s,
   )
   File.open target, "w" do |f|
-    run_command env, "hydrator", "by", "--no-rubygems", "--no-yjit", out: f
+    run_command env, "ready", "by", "--no-rubygems", "--no-yjit", out: f
   end
 end
 
@@ -48,7 +48,7 @@ def compile_gem(executable_name, target:)
   env = ENV.to_h.merge("PATH" => shell_load_path)
 
   File.open target, "w" do |f|
-    run_command env, "hydrator", "gem", "--environment", "BY_SOCKET=#{READY_SOCKET}", executable_name, out: f
+    run_command env, "ready", "gem", "--environment", "BY_SOCKET=#{READY_SOCKET}", executable_name, out: f
   end
 end
 
@@ -89,10 +89,10 @@ namespace :ready do
     touch READYFILE
   end
 
-  hydrator_path = EXE_DIR / "hydrator"
+  ready_path = EXE_DIR / "hydrator"
 
-  file hydrator_path do
-    raise "hydrator not found at hydrator_path"
+  file ready_path do
+    raise "ready not found at hydrator_path"
   end
 
   extra = READY_PREFIX / "extra.rb"
@@ -128,7 +128,7 @@ namespace :ready do
     run_command env, "by-server", *READYFILE.gem_names, ri_bootstrapper.to_s, extra.to_s, chdir: Dir.home
   end
 
-  core_deps = FileList[READY_BUILD_DIR, trace_dir, hydrator_path]
+  core_deps = FileList[READY_BUILD_DIR, trace_dir, ready_path]
 
   desc "Start the ready server"
   task start_server: READY_SOCKET do

@@ -1,3 +1,15 @@
 #!/usr/bin/env ruby
 
-require "ready"
+require_relative "../lib/ready"
+
+result = (
+  case ARGV
+  in ["by", *rest] then Ready::ByParser.parse(*rest).to_alias
+  in [/gems?/, *rest] then Ready::GemParser.parse(*rest)
+  else
+    puts "Usage: #{$0} [by|gem] [options]"
+    exit 1
+  end
+)
+
+print result
