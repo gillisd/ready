@@ -1,4 +1,5 @@
 require "zeitwerk"
+require 'shellwords'
 
 ##
 # Top-level namespace for the ready gem.
