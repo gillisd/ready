@@ -1,0 +1,478 @@
+#!/usr/bin/env zsh
+arr_debug () {
+  emulate -L zsh
+  print_colors
+  local expression=${@} 
+  if [[ -z ${expression} ]]
+  then
+    printerr_bold_red "Must pass an expression"
+    return 1
+  fi
+  setopt pipefail
+  expression=${(qqq)expression} 
+  print -u2 -P -r "%B%F{cyan} -- [DEBUG] -- %f%b %F{green}[%N]%f %B%F{cyan} -- %f%b %F{cyan}${expression}%f"
+}
+ slurp () {
+  emulate -L zsh
+  setopt errreturn
+  local varname=${1:-""} 
+  zslurp
+  local NL=$'\x0a' 
+  REPLY=${REPLY%%${NL}} 
+  if [[ -z ${varname} ]]
+  then
+    return
+  fi
+  if (( $+parameters[$varname] ))
+  then
+    if [[ ${parameters[$varname]} =~ local ]]
+    then
+      eval "${(q)varname}=${(qqq)REPLY}"
+    else
+      typeset -g ${varname}=${REPLY}
+    fi
+  else
+    typeset -g ${varname}=${REPLY}
+  fi
+  REPLY="" 
+}
+ by_gem () {
+  by_gem () {
+    emulate -L zsh
+    if (( $+parameters[RUBYOPT] ))
+    then
+      local -x RUBYOPT=${RUBYOPT:-""} 
+      local -a rubyopt=(${(z)RUBYOPT}) 
+      rubyopt=(${rubyopt:#*bundler/setup}) 
+      rubyopt=(${rubyopt:#*bundler/setup.rb}) 
+      typeset -p rubyopt >&2
+      RUBYOPT=${(j: :)rubyopt} 
+    fi
+    by -e "$(
+            cat <<'RUBY'
+      # frozen_string_literal: true
+
+#--
+# Copyright 2006 by Chad Fowler, Rich Kilmer, Jim Weirich and others.
+# All rights reserved.
+# See LICENSE.txt for permissions.
+#++
+
+require "rubygems/gem_runner"
+
+Gem::GemRunner.new.run ARGV.clone
+
+RUBY
+      )" "$@"
+  }
+  by_gem "${@}"
+}
+ str_split () {
+  emulate -L zsh
+  print_colors
+  local -A opt_args
+  zparseopts -A opt_args -D -E -F -K -delimiter: d:
+  local input=${1} 
+  local string
+  local delimiter=z 
+  opt_read --infer-short opt_args delimiter && delimiter=${REPLY} 
+  if [[ -z ${input} ]]
+  then
+    printerr_bold_red "Input must be present"
+  elif [[ -v ${input} ]]
+  then
+    string=${(P)input} 
+  else
+    string=${input} 
+  fi
+  unset reply
+  typeset -ga reply
+  if [[ ${delimiter} = z ]]
+  then
+    set -A reply ${(Az)string}
+  elif [[ ${delimiter} = f ]]
+  then
+    set -A reply ${(Af)string}
+  elif [[ ${delimiter} = 0 ]] || [[ delimiter = '0' ]]
+  then
+    set -A reply ${(A0)string}
+  elif [[ ${delimiter} = ':' ]]
+  then
+    set -A reply ${(pAs%:%)string}
+  else
+    set -A reply ${(pAs:$delimiter:)string}
+  fi
+}
+ print_colors () {
+  
+}
+ opt_read () {
+  emulate -L zsh
+  setopt extendedglob
+  local -A optread_opts
+  zparseopts -A optread_opts -D -F - c -canonical -infer-short i
+  if (( ? != 0 ))
+  then
+    print -u2 "Error parsing options"
+    return 1
+  fi
+  local canonical=false 
+  local input
+  local opt_name
+  if aa_key optread_opts -c || aa_key optread_opts --canonical
+  then
+    canonical=true 
+  fi
+  if $canonical
+  then
+    input=opt_args 
+    opt_name=$1 
+  else
+    input=$1 
+    opt_name=$2 
+  fi
+  if $canonical || aa_key optread_opts --infer-short || aa_key optread_opts -i
+  then
+    local first_letter=${opt_name[1]} 
+    local -a input_keys=(${(Pk)input}) 
+    local -a short_matching_keys=(${(M)input_keys:##-${first_letter}}) 
+    integer key_count=${#short_matching_keys} 
+    if (( key_count > 1 ))
+    then
+      print -u2 "Ambiguous short option: ${first_letter}. Matches:$'\n' ${(F)short_matching_keys}"
+      return 1
+    elif (( key_count == 1 ))
+    then
+      opt_name=${short_matching_keys[1]#-} 
+    fi
+  fi
+  if [[ -z ${input} ]]
+  then
+    print -u2 "Must pass an input"
+    return 1
+  fi
+  if ! [[ ${opt_name} =~ '^-{1,2}' ]]
+  then
+    if ((${#opt_name} > 1))
+    then
+      opt_name="--${opt_name}" 
+    else
+      opt_name="-${opt_name}" 
+    fi
+    if aa_key ${input} ${opt_name}
+    then
+      REPLY=${${${(P)input}[${opt_name}]/=/}:-true} 
+      return 0
+    else
+      unset REPLY
+      return 1
+    fi
+  else
+    return 1
+  fi
+}
+ arr_empty () {
+  emulate -L zsh
+  print_colors
+  local arr_name=${1} 
+  if [[ -z ${arr_name} ]]
+  then
+    printerr_red "Must pass array name"
+    return 1
+  fi
+  if [[ ${arr_name} = argv ]]
+  then
+    printerr_red "Cannot check argv. Use a different name"
+    return 1
+  fi
+  setopt pipefail
+  if ! [[ ${(t)${(P)arr_name}} =~ array ]]
+  then
+    printerr_red "Input is not an array"
+    return 1
+  fi
+  if (( ${#${(P)arr_name}} == 0 ))
+  then
+    return 0
+  else
+    return 2
+  fi
+}
+ rif () {
+  emulate -L zsh
+  setopt extendedglob
+  print_colors
+  local -A opt_args
+  zparseopts -D -E -K -A opt_args - i -interactive -forcebat -no-strip n
+  (( ? != 0 )) && return 1
+  local interactive=false 
+  local no_strip=false 
+  local forcebat=false 
+  opt_read -c no-strip && no_strip=$REPLY 
+  opt_read -c interactive && interactive=$REPLY 
+  opt_read opt_args forcebat && forcebat=true 
+  local -a bat_options=(${(M)@:#-*}) 
+  set -- ${@:|bat_options}
+  local query=${1:?} 
+  integer index=${2:-0} 
+  local -a all
+  str_split -d '::' query
+  arr_map -v reply '${(j:_:)it}' '${it//(#b)([A-Z][^A-Z](#c1,))([A-Z][^A-Z](#c,))/${(j:_:)match}}' '${(L)it}'
+  local gem_name=$reply[1] 
+  local -a rest=(${reply[2,-1]}) 
+  if (( $#rest == 0 ))
+  then
+    rest=($gem_name) 
+  elif (( $#rest > 0 ))
+  then
+    local alt_gem_name=$gem_name-$rest[1] 
+  fi
+  arr_join -d '/' rest
+  local relpath=${REPLY}.rb 
+  by_gem contents $alt_gem_name $gem_name ${gem_name//_/} | wind -v1 all
+  local -Ua results
+  results=(${(M)${(M)all:%*.rb}:%*/lib/*/${~relpath}}) 
+  if arr_empty results
+  then
+    print -u2 -P "%F{red}Found no results%f"
+    return 1
+  elif $interactive
+  then
+    local -a abbrev=(${results//#*${gem_name}/${gem_name}}) 
+    local -a results=(${results:^abbrev}) 
+    print -r -C2 -a -- $results | command fzf --with-nth=2 --ansi --preview-window='70%,wrap' --preview "bat --language=ruby --color=always {1}"
+  elif (( $#results > 1 )) && (( index == 0 ))
+  then
+    print -u2 -P "%F{blue}Found more than 1 result:%f"
+    print -r -l -- $results
+    return 0
+  fi
+  if (( index == 0 ))
+  then
+    index=1 
+  elif (( index > $#results ))
+  then
+    print -u2 -P "%F{red}Index out of bounds: %B$index%b > %B$#results%b%f"
+    return 1
+  fi
+  local filepath=${results[$index]} 
+  local presented_filepath=${filepath##*gems/} 
+  bat_options+=(--file-name $presented_filepath) 
+  {
+    if $no_strip
+    then
+      command gcat $filepath
+    else
+      command ggrep --color=auto --binary-files=text -Pv '^\s*#?\s*$' $filepath
+    fi
+  } | command tab2space -t2 | {
+    if [[ -t 1 ]] || $force_bat
+    then
+      command bat --color=always --no-paging --language=ruby $bat_options
+    else
+      col -b
+    fi
+  }
+}
+ val_arr () {
+  emulate -L zsh
+  print_colors
+  local -A opt_args
+  local is_quiet=false 
+  zparseopts -D -E -K -A opt_args -F - -quiet -silent s q
+  (( ? != 0 )) && return 1
+  if opt_read -c quiet || opt_read -c silent
+  then
+    is_quiet=true 
+  fi
+  local arr_name=${1} 
+  if [[ -z ${arr_name} ]]
+  then
+    $is_quiet || printerr_bold_red "Must pass an array name"
+    return 1
+  fi
+  if [[ ${arr_name} =~ '\$\{' ]] || [[ ${arr_name} =~ ' ' ]]
+  then
+    $is_quiet || printerr_bold_red "Must pass name of array, not expression"
+    return 1
+  fi
+  if ! [[ ${(Pt)arr_name} =~ array ]]
+  then
+    $is_quiet || printerr_bold_red "'${arr_name}' is not an array"
+    return 1
+  fi
+  setopt pipefail
+}
+ arr_clone () {
+  emulate -L zsh
+  print_colors
+  setopt extendedglob
+  local arr_name
+  local clone_name
+  if (( # == 1 ))
+  then
+    arr_name=reply 
+    clone_name=${1} 
+  else
+    arr_name=${1} 
+    clone_name=${2} 
+  fi
+  val_arr ${arr_name}
+  setopt pipefail
+  set -A ${clone_name} ${(P)arr_name}
+}
+ wind () {
+  emulate -L zsh
+  zmodload zsh/mapfile
+  setopt extendedglob
+  setopt errreturn
+  local quotes
+  local file
+  local variation='-v3' 
+  zparseopts -D -K -E -F - v::=variation f::=file -file::=file q=quotes -quotes=quotes
+  local arrayname=${1:-reply} 
+  local input=/dev/stdin 
+  local use_quotes=false 
+  local NL=$'\x0a' 
+  if [[ -n $file ]]
+  then
+    input=${file##-(#c1,2)f(ile)(#c,1)(=| (#c,))} 
+    print -v input ${~input/%/(#q-NA)}
+    if (( ${#input} != ${#${input## (#c,)}} )) || [[ -z ${input} ]]
+    then
+      {
+        print -u2 -P -- "%B%F{red}Your file input contains ambiguous prefix spacing:%b"
+        typeset -p file >&2
+        print -u2 -P -- "%BCorrect it and try again%b%f"
+        return 1
+      }
+    fi
+  fi
+  if [[ $quotes = "-q" ]] || [[ $quotes = '--quotes' ]]
+  then
+    use_quotes=true 
+  fi
+  if [[ $input = /dev/stdin ]]
+  then
+    slurp
+    if ${use_quotes}
+    then
+      set -A ${arrayname} ${(qqq@f)REPLY}
+    else
+      case $variation in
+        ("-v1") set -A ${arrayname} "${(@f)REPLY%${NL}}" ;;
+        ("-v2") set -A ${arrayname} "${(@f)REPLY}" ;;
+        ("-v3") set -A ${arrayname} ${(@f)REPLY} ;;
+      esac
+    fi
+  elif [[ -r ${input} ]]
+  then
+    case $variation in
+      ("-v1") set -A ${arrayname} "${(f@)${mapfile[${input}]%${NL}}}" ;;
+      ("-v2") set -A ${arrayname} "${(f@)${mapfile[${input}]}}" ;;
+      ("-v3") set -A ${arrayname} ${(f@)${mapfile[${input}]}} ;;
+    esac
+  else
+    print -u2 -P "%F{red}Error. Unknown options specified: %B${(qq)@}%b%f"
+    return 1
+  fi
+}
+ arr_map () {
+  emulate -L zsh
+  setopt extendedglob
+  print_colors
+  local -A opt_args
+  local to_evaluate
+  unset MATCH
+  zparseopts -A opt_args -D -E -F -- e -echo p v -verbose
+  local arr_name=${1} 
+  if ! val_arr ${arr_name}
+  then
+    return 1
+  fi
+  local -a expressions=(${(Oa)${@[2,-1]}}) 
+  if (( ${#expressions} == 0 ))
+  then
+    printerr_bold_red "Must pass at least one expression"
+    return 1
+  fi
+  local exp1=${expressions[1]//it/MATCH} 
+  local i
+  for i in ${expressions[2,-1]}
+  do
+    i=${${i}//it/MATCH} 
+    exp1=${exp1//MATCH/"${i}"} 
+  done
+  builtin print -v to_evaluate -r -- "set -A reply \${\${(P)arr_name}/(#m)*/\${${exp1}}}"
+  if opt_read -c verbose
+  then
+    arr_debug ${to_evaluate}
+  fi
+  eval ${to_evaluate}
+  if opt_read -c echo
+  then
+    print -r -- ${reply}
+  fi
+}
+ arr_join () {
+  emulate -L zsh
+  print_colors
+  local -A opt_args
+  zparseopts -A opt_args -D -E -F -K -delimiter: d:
+  local arr_name=${1} 
+  local delimiter=z 
+  local NUL=$'\x00' 
+  if ! val_arr ${arr_name}
+  then
+    return 1
+  fi
+  opt_read --infer-short opt_args delimiter && delimiter=${REPLY} 
+  if [[ ${delimiter} = z ]]
+  then
+    REPLY=${(j: :)${(P)arr_name}} 
+  elif [[ ${delimiter} = 0 ]] || [[ delimiter = '0' ]]
+  then
+    REPLY=${(pj:$NUL:)${(P)arr_name}} 
+  elif [[ ${delimiter} = ':' ]]
+  then
+    REPLY=${(pj%:%)${(P)arr_name}} 
+  else
+    REPLY=${(pj:$delimiter:)${(P)arr_name}} 
+  fi
+}
+ aa_key () {
+  emulate -L zsh
+  local input=${1} 
+  local key_name=${2} 
+  if [[ -z ${input} ]]
+  then
+    print -u2 "Must pass name of associative array"
+    return 1
+  fi
+  if [[ -z ${key_name} ]]
+  then
+    print -u2 "Must pass name of key"
+    return 1
+  fi
+  if [[ ${${(P)input}[(I)${key_name}]} = ${key_name} ]]
+  then
+    return 0
+  else
+    return 1
+  fi
+}
+ zslurp () {
+  emulate -L zsh -o no_multibyte
+  zmodload zsh/system || return
+  local -a content
+  local -i i=0 
+  while true
+  do
+    sysread 'content[++i]' && continue
+    (( $? == 5 )) || return
+    break
+  done
+  typeset -g REPLY=${(j::)content} 
+}
+
+rif ${@}

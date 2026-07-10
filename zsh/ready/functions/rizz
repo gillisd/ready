@@ -1,0 +1,50 @@
+#autoload
+
+emulate -L zsh
+
+setopt pipefail
+setopt errreturn
+setopt warnnestedvar
+setopt warncreateglobal
+
+autoload -Uz print_colors
+autoload -Uz opt_read
+autoload -Uz ruby
+autoload -Uz ready_ri
+print_colors
+
+local -A opt_args
+
+zparseopts \
+  -D \
+  -E \
+  -K \
+  -A \
+  opt_args \
+  -F \
+  - \
+  -no-glow \
+  -pager
+(( ? != 0 )) && return 1
+
+local -a glow_args
+local no_glow=false
+
+opt_read -c pager && glow_args+=(--pager)
+opt_read opt_args no-glow && no_glow=true
+
+# for some reason ruby is faster for running this formatting script than "by"? I wonder why - main component of that script is prism
+ready_ri ${@} \
+  | {
+  if $no_glow; then
+    gcat
+  else
+    ruby ~/repos/formatter.rb \
+    |  command gawk '
+	/```ruby/{block=1; print; next}
+	/```/{block=0; print; next}
+	block==1{gsub(/^    /,"")}
+	{print} ' \
+      | ptywrap -- glow ${glow_args}
+  fi
+}

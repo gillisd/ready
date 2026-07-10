@@ -1,0 +1,28 @@
+# AUTO-GENERATED ZSH FUNCTION VIA ready.rb
+#
+ready_<%= name %> () {
+  emulate -L zsh
+
+  setopt pipefail errreturn warncreateglobal warnnestedvar
+
+  autoload -Uz __ready_debug
+  autoload -Uz ready_by
+
+  <% # having bundler/setup set as a require in `RUBYOPT` causes all sorts # of issues when making a stub around a persistent server.
+  # Remove it if present, careful not to slow things down by spawning subshells
+  %>
+  if (( $+parameters[RUBYOPT] ))
+  then
+    __ready_debug "Detected RUBYOPT present: ${(kv)parameters[RUBYOPT]}"
+    local -x RUBYOPT=${RUBYOPT:-""}
+    local -a rubyopt=(${(z)RUBYOPT})
+
+    rubyopt=(${rubyopt:#*bundler/setup})
+    rubyopt=(${rubyopt:#*bundler/setup.rb})
+    RUBYOPT=${(j: :)rubyopt}
+    __ready_debug "Sanitized RUBYOPT: ${(kv)parameters[RUBYOPT]}"
+  fi
+
+  <%= env.map { |pair| pair.join("=")  }.join(" ") %> \
+    ready_by -e <%= ruby.shellescape %> "$@"
+}

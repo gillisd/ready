@@ -1,0 +1,108 @@
+#!/usr/bin/env zsh
+
+SCRIPT_DIR=${0:A:h}
+file=$1
+typeset -x temp=$(mktemp)
+cat $file > $temp
+{
+$SCRIPT_DIR/by -e "$(cat <<'EOF'
+
+require 'prism'
+
+TERM_RE = /_term/
+
+def classify(code)
+  return :text if code.lines.all? { |l| l.strip.empty? || l.start_with?("#") }
+  clean = code.gsub(/---/, "")
+  r = Prism.parse(clean)
+  return :code if r.errors.empty?
+  has_term = r.errors.any? { |e| e.type.to_s.match?(TERM_RE) }
+  if has_term
+    (1..5).each do |n|
+      return :incomplete_code if Prism.parse(clean + ("\nend" * n)).errors.empty?
+    end
+  end
+  :text
+end
+
+def flush(buf, mode)
+  return if buf.empty?
+  text = buf.join("\n\n")
+  # Convert definition lists (term\n:   desc) to term\n  desc
+  # so glow doesn't render them with the 🠶 character
+  text.gsub!(/^:   /m, "  ")
+  if mode == :code
+    puts "```ruby"
+    puts text
+    puts "```"
+  else
+    puts text
+  end
+  puts
+end
+
+buf = []
+mode = nil
+accumulating = false
+
+File.open(ENV.fetch("temp")).each("\n\n", chomp: true) do |para|
+  para.chomp!
+  next if para.strip.empty?
+
+  if accumulating
+    buf << para
+    combined_cls = classify(buf.join("\n"))
+    if combined_cls == :code
+      flush(buf, :code)
+      buf = []
+      mode = nil
+      accumulating = false
+    elsif combined_cls == :incomplete_code
+      # keep accumulating
+    else
+      # new paragraph broke it — flush accumulated as code, reprocess current
+      current = buf.pop
+      flush(buf, :code)
+      buf = []
+      accumulating = false
+
+      cls = classify(current)
+      if cls == :incomplete_code
+        accumulating = true
+        mode = :code
+        buf = [current]
+      else
+        mode = cls == :code ? :code : :text
+        buf = [current]
+      end
+    end
+  else
+    cls = classify(para)
+    if cls == :incomplete_code
+      if mode && mode != :code
+        flush(buf, mode)
+        buf = []
+      end
+      mode = :code
+      buf << para
+      accumulating = true
+    else
+      cur = cls == :code ? :code : :text
+      if mode && mode != cur
+        flush(buf, mode)
+        buf = []
+      end
+      mode = cur
+      buf << para
+    end
+  end
+end
+
+flush(buf, mode)
+exit
+warn :done
+EOF
+)"
+} always {
+	rm -f $temp
+}

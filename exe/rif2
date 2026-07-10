@@ -1,0 +1,58 @@
+#!/usr/bin/env zsh
+rif2 () {
+  emulate -L zsh
+  setopt pipefail
+  setopt errreturn
+  setopt warnnestedvar
+  setopt warncreateglobal
+  {
+    time by -e '
+    require "flexor"
+    require "command_kit/colors"
+    require "irb/source_finder"
+include CommandKit::Colors::ANSI
+duck_context = F.new.tap do |f|
+  f.workspace.binding = binding
+end
+
+constant = ARGV.first.to_s
+constant_no_trailing = ARGV.first.to_s.gsub(/:*$/,"")
+unless (constant_no_trailing.constantize rescue false)
+	begin
+	  underscored_no_trailing = constant_no_trailing.underscore.gsub(/\/*$/,"")
+	  warn yellow("Constant #{bold(constant_no_trailing.inspect)} not ready. Attempting to require #{bold(underscored_no_trailing.inspect)}")
+	  require underscored_no_trailing
+	rescue LoadError
+	  puts red("Error: #{bold(underscored_no_trailing.inspect)} not found")
+	  exit 1
+	end
+end
+
+source = IRB::SourceFinder
+	.new(duck_context)
+	.find_source(constant_no_trailing)
+
+if source.nil?
+  puts red("Error: No results found" )
+  exit 1
+end
+
+source_path = Pathname(source.file)
+gem_path = Pathname(Gem.paths.home)
+path = source_path.relative_path_from gem_path
+puts path
+puts source.file_content
+' $@
+  } | {
+    local filepath
+    read filepath
+    if [[ $line =~ "Error:" ]]
+    then
+      print -r -- $filepath
+    else
+        command tab2space -t2 | command bat --color=always --language=ruby --file-name="$filepath" --theme=Coldark-Dark
+    fi
+  }
+}
+
+rif2 ${@}

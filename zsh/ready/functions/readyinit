@@ -1,0 +1,52 @@
+#autoload
+# Initializes "ready" functions and completions
+
+emulate -L zsh
+
+setopt extendedglob errreturn warncreateglobal warnnestedvar
+
+autoload -Uz __ready_debug
+autoload -Uz compdef
+
+local fn
+local compiledpath=$READY_PREFIX/builds.zwc
+local possible_basename
+local	possible_declared_completion_fn
+
+compiledpath=${compiledpath:P}
+
+if ! [[ -f $compiledpath ]]; then
+  print -u2 "Compiled path ${compiledpath} does not exist. Please run 'readyup' to create it."
+  return 1
+fi
+
+local -a noncompletions=(${${${${${(f@)"$(builtin zcompile -t $compiledpath)"}[2,-1]}:t}:#_*}:#ready})
+fpath+=($compiledpath)
+
+# eager load everything in the compiled binary
+builtin autoload -w +X -Uz $compiledpath
+
+for fn in $noncompletions; do
+  possible_basename=${fn#ready_}
+  possible_declared_completion_fn=$READY_COMPLETIONS_DIR/_$fn
+
+  __ready_debug info "RUN builtin alias -- $possible_basename=$fn"
+  builtin alias -- $possible_basename=$fn
+
+  if (( $+_comps[$fn] )); then
+    __ready_debug warn "_$fn already defined: ${(j: -> :)${(kv)_comps[$fn]}}. Skipping..."
+    continue
+  fi
+
+  if [[ -f $possible_declared_completion_fn ]]; then
+    __ready_debug info "Found _$fn function at $possible_declared_completion_fn"
+    autoload -Uz _$fn
+    compdef _$fn $fn
+    continue
+  fi
+
+  if (( $+_comps[$possible_basename] )); then
+    __ready_debug info "RUN compdef _${possible_basename} $fn"
+    compdef _${possible_basename} $fn
+  fi
+done

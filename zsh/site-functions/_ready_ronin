@@ -1,0 +1,12 @@
+#compdef ready_ronin
+
+autoload -Uz _ronin
+
+# need to call this once to get _ronin_completions loaded
+_ronin &>/dev/null
+
+# set ${_comps[ready_ronin]} to "_bash_complete -F _ronin_completions", and
+# then remove this "bootstrapper" function. After this is done, the zsh-bash handler takes
+# over.
+compdef _bash_complete\ -F\ _ronin_completions ready_ronin
+unfunction _ready_ronin

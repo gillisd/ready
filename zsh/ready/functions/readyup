@@ -1,0 +1,64 @@
+#autoload
+# Shortcut for running "rake ready in ready project dir"
+
+emulate -L zsh
+
+zmodload -F zsh/files b:zf_rm b:zf_mkdir
+
+setopt extendedglob
+setopt pipefail
+setopt errreturn
+setopt warnnestedvar
+setopt warncreateglobal
+
+autoload -Uz readyinit __ready_debug __ready_print
+
+local -a tounfun
+local -a tounalias
+
+local tmpdir=${READY_PREFIX:?}
+local readydir=${READY_SRC_DIR:?}
+local rc
+
+tounfun=(${functions[(I)_(#c0,1)ready_*]} ready_by)
+tounalias=(${${tounfun:t}/#*ready_})
+
+(
+  local al
+  for al in $tounalias; do
+    if (( $+aliases[$al] )); then
+      builtin unalias $al &>/dev/null
+    else
+      __ready_debug info "Alias $al not found. Skipping unalias..."
+    fi
+  done
+
+  for al in $tounfun; do
+    if (( $+functions[$al] )); then
+      builtin unfunction $al &>/dev/null
+    else
+      __ready_debug info "Function $al not found. Skipping unalias..."
+    fi
+  done
+
+  builtin cd -q $readydir
+
+  if ! (( $+commands[rbenv] )); then
+    string="%B%rbenv%b was not found. Cannot continue"
+    __ready_print -c red $string
+    __ready_debug error $string
+    return 1
+  fi
+
+  command rbenv exec ruby --disable=gems -W0 -S rake --verbose ready
+)
+rc=$?
+
+if (( rc != 0 )); then
+  string="Encountered error(%B$rc%b) while running compilation task. Cannot continue."
+  __ready_print -c red $string
+  __ready_debug error $string
+  return $rc
+fi
+
+readyinit

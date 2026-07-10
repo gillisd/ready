@@ -1,0 +1,79 @@
+%rec: Issue
+%key: Id
+%typedef: text_t regexp /.*/
+%typedef: Status_t enum open in_progress complete
+%type: Id int
+%type: Name line
+%type: Summary text_t
+%type: Status Status_t
+%type: Created date
+%auto: Id Created
+%mandatory: Name Summary Status
+
+Id: 0
+Created: Sun, 08 Mar 2026 17:22:28 -0400
+Name: Rubygems struggles with conflicting gem versions
+Summary: Say you have:
++ gem_a as a dep, where gem_a is dependent on `BigDecimal, >= '3.3.0'`
++ gem_b as a dep, where gem_b is dependent on `BigDecimal, ~> '3.3.0'`
++ 
++ If gem_a is loaded first, and latest present version of BigDecimal is 4.0.1, loading gem_b will raise error when it tries to load big_decimal, as rubygems is greedy.
++ 
++ Possible solutions:
++ - Dynamically create a gemfile on the spot, so that a lockfile is produced prior to booting by-server
++ - Try to mitigate load order (currently doing this as a quick fix)
+Status: open
+
+Id: 1
+Created: Sun, 08 Mar 2026 17:36:16 -0400
+Name: Need to patch by.gem source with my modifications
+Summary: Currently the following support is broken, or is not fully implemented in by:
++ 3. process sub (e.g. /dev/fd/12 support when that is used as a file)
++ 2. sigint should be ignored when using irb
++ 1. there are still random irb failures
+Status: open
+
+Id: 2
+Created: Wed, 01 Apr 2026 10:59:52 -0400
+Name: Ruby codeblocks preceded by "   #" get mangled when using Rizz
+Summary: Rizz output shown below for the ruby "box" rdoc:
++ "
++  # in foo.rb
++   class String
++   BLANK_PATTERN = /\A\s*\z/
++   def blank?
++   self =~ BLANK_PATTERN
++   end
++   end
++ 
++     module Foo
++       def self.foo = "foo"
++ 
++       def self.foo_is_blank?
++     foo.blank?
++       end
++     end
++ 
++     Foo.foo.blank? #=> false
++     "foo".blank?   #=> false
++ 
++     # in main.rb
++     box = Ruby::Box.new
++     box.require('foo')
++ 
++     box::Foo.foo_is_blank? #=> false   (#blank? called in box)
++ 
++     "foo".blank?          # NoMethodError
++     String::BLANK_PATTERN # NameError
++ 
++   The main box and  box  are different boxes, so monkey patches in main
++   are also invisible in  box .
++ "
++ Rizz formats correctly starting at "module Foo", but everything before it is not formatted. The raw markdown adds a tab indent before "# in foo.rb", which likely messes things up.
+Status: open
+
+Id: 3
+Created: Sat, 18 Apr 2026 10:36:11 -0400
+Name: Why are functions in zwc prefixed with their full absolute paths?
+Summary: Things appear to be working, possibly by accident. I should investigate this further
+Status: open

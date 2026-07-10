@@ -1,0 +1,55 @@
+#autoload
+
+emulate -L zsh
+
+setopt errreturn warncreateglobal warnnestedvar
+
+local -A opt_args
+local -a print_opts
+local string
+
+zparseopts \
+  -D \
+  -E \
+  -K \
+  -A \
+  opt_args \
+  - \
+  v: \
+  c: \
+  -color: \
+  -var:
+(( ? != 0 )) && return 1
+
+local var
+
+if (( $+opt_args[--var] )); then
+  print_opts+=(-v ${opt_args[--var]##=})
+fi
+
+if (( $+opt_args[-v] )); then
+  print_opts+=(-v ${opt_args[-v]})
+fi
+
+local color
+local i
+if (( $+opt_args[--color] )) || (( $+opt_args[-c] )); then
+  i=${opt_args[(i)(--color|--color=|-c)]}
+  color=${opt_args[${i##=}]}
+fi
+
+integer string_start_index=${@[(i)[^-]*]}
+integer string_end_index=${#@}
+print_opts+=(${@[1,$((string_start_index - 1))]})
+string="${@[$string_start_index, $string_end_index]}"
+
+if [[ -n $color ]]; then
+  string="%F{$color}${string}%f"
+  if ! (( $print_opts[(I)-P] )); then
+    print_opts+=(-P)
+  fi
+else
+  print_opts+=(--)
+fi
+
+builtin print $print_opts $string

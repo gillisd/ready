@@ -1,0 +1,52 @@
+##
+# ready_log <debug|info|warn|error>
+#
+emulate -L zsh
+
+setopt errreturn warncreateglobal warnnestedvar
+
+zmodload zsh/datetime
+
+autoload -Uz __ready_datetime __ready_print
+
+local temp
+local level
+local configured_level=${READY_LOGLEVEL:-info}
+local -a rest
+local -A mapping=(
+  [debug]=yellow
+  [info]=cyan
+  [warn]=magenta
+  [error]=red
+)
+
+if (( $+mapping[$1] )); then
+  level=$1
+  rest=("${(@)@[2,-1]}")
+else
+  level=info
+  rest=("${(@)@}")
+fi
+
+if [[ -z "${(j::)rest}" ]]; then
+  print -u2 "must enter a debug message"
+  return 1
+fi
+
+if (( READY_DEBUG )); then
+  configured_level=debug
+fi
+
+local -A rank=(debug 0 info 1 warn 2 error 3)
+
+if (( ${rank[$level]:-1} <= ${rank[$configured_level]:-1} )); then
+  __ready_datetime $EPOCHREALTIME
+{
+  if [[ $READY_LOG_PATH = /dev/stdin ]] || [[ $READY_LOG_PATH = /dev/stderr ]] || [[ $READY_LOG_PATH = /dev/tty ]] && [[ -t 1 ]]
+  then
+    __ready_print -c ${mapping[$level]} "[%B${REPLY}%b]" "[%B${(U)level}%b]" $rest
+  else
+    __ready_print "[${REPLY}]" "[${(U)level}]" $rest
+  fi
+} >> $READY_LOG_PATH
+fi
