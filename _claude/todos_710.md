@@ -55,4 +55,7 @@ statement to put in zshrc or eval directly
 4. As you can see I started a table of parameters that can configure ready. You are to finish this table and make it
 reflect the current configuration plane
 
-For all of these TODO's, ensure you keep a log of issues in _claude if you come across any.
+
+## OTHER STUFF
+1. For all of these TODO's, ensure you keep a log of issues in _claude if you come across any.
+2. DO NOT worry about existing rubocop issues right now.
