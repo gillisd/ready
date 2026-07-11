@@ -151,6 +151,16 @@ Style/Documentation:
   Exclude:
     - "spec/**/*"
 
+# E2E specs share one expensive by-server across examples via before(:all) and
+# hold it in an instance variable; that is intentional here.
+RSpec/BeforeAfterAll:
+  Exclude:
+    - "spec/e2e/**/*"
+
+RSpec/InstanceVariable:
+  Exclude:
+    - "spec/e2e/**/*"
+
 # Trailing commas in multiline literals and arguments.
 Style/TrailingCommaInArrayLiteral:
   EnforcedStyleForMultiline: comma
