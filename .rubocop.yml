@@ -168,6 +168,12 @@ RSpec/SpecFilePathFormat:
     - "spec/e2e/**/*"
     - "spec/bench/**/*"
 
+# Ready::Bench::Report is a waterfall renderer whose job is to write to stdout;
+# it lives under spec/support only so Zeitwerk autoloads it.
+RSpec/Output:
+  Exclude:
+    - "spec/support/bench/**/*"
+
 # Trailing commas in multiline literals and arguments.
 Style/TrailingCommaInArrayLiteral:
   EnforcedStyleForMultiline: comma
