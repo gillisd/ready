@@ -8,6 +8,7 @@ configuration = Ready::Configuration.new
 
 PROJECT_DIR = configuration.project_path
 EXE_DIR = PROJECT_DIR / "exe"
+EXTRA_DIR = PROJECT_DIR / "extra"
 READY_PREFIX = configuration.prefix
 READY_SOCKET = configuration.sock_path
 READY_BUILD_DIR = configuration.build_dir
@@ -39,7 +40,7 @@ def compile_by(target:)
     "BY_SOCKET" => READY_SOCKET.to_s,
   )
   File.open target, "w" do |f|
-    run_command env, "ready", "by", "--no-rubygems", "--no-yjit", out: f
+    run_command env, "ready", "compile", "by", "--no-rubygems", "--no-yjit", out: f
   end
 end
 
@@ -48,7 +49,7 @@ def compile_gem(executable_name, target:)
   env = ENV.to_h.merge("PATH" => shell_load_path)
 
   File.open target, "w" do |f|
-    run_command env, "ready", "gem", "--environment", "BY_SOCKET=#{READY_SOCKET}", executable_name, out: f
+    run_command env, "ready", "compile", "--environment", "BY_SOCKET=#{READY_SOCKET}", executable_name, out: f
   end
 end
 
@@ -79,7 +80,7 @@ namespace :ready do
     mkdir_p trace_dir
   end
 
-  ri_bootstrapper = EXE_DIR / "ri.rb"
+  ri_bootstrapper = EXTRA_DIR / "ri.rb"
 
   file ri_bootstrapper do
     raise "RI patch should already exist at #{ri_bootstrapper.to_s.inspect}"
@@ -89,10 +90,10 @@ namespace :ready do
     touch READYFILE
   end
 
-  ready_path = EXE_DIR / "hydrator"
+  ready_path = EXE_DIR / "ready"
 
   file ready_path do
-    raise "ready not found at hydrator_path"
+    raise "ready executable not found at #{ready_path}"
   end
 
   extra = READY_PREFIX / "extra.rb"
