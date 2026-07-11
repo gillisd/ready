@@ -183,3 +183,10 @@ RSpec/NamedSubject:
 # have_file_content matcher accepts a filename string in expect()
 RSpec/ExpectActual:
   Enabled: false
+
+Lint/EmptyInPattern:
+  Enabled: false
+
+Metrics/MethodLength:
+  Exclude:
+    - "**/*.rake"

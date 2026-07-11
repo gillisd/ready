@@ -13,14 +13,14 @@ READY_SOCKET = configuration.sock_path
 READY_BUILD_DIR = configuration.build_dir
 READYFILE = configuration.readyfile
 
-def run_command(*args, out: STDOUT, **kwargs)
+def run_command(*args, out: $stdout, **kwargs)
   case args
   in Hash => env, *cmd
   in cmd then env = {}
   end
 
-  cmd_string = cmd.join(" ")
-  puts cmd_string
+  puts
+  puts cmd.join(" ")
 
   Bundler.with_unbundled_env do
     Open3.popen2(env, *cmd, **kwargs) do |sin, sout, wait|
@@ -170,7 +170,8 @@ namespace :ready do
 
     file compiled => all_executables do |task, _|
       pathname = Pathname(task.name)
-      run_command "zsh", "-c", Shellwords.join(["zcompile", "-Uz", pathname.basename.to_s, *all_executables]),
+      run_command "zsh", "-c",
+                  Shellwords.join(["zcompile", "-Uz", pathname.basename.to_s, *all_executables]),
                   chdir: pathname.parent
     end
 
