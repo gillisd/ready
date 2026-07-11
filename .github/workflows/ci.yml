@@ -26,3 +26,20 @@ jobs:
       run: bundle exec rake spec
     - name: Run RuboCop
       run: bundle exec rake rubocop
+
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby-version: ['3.4.7', '4.0.1']
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install zsh
+      run: sudo apt-get update && sudo apt-get install -y zsh
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler-cache: true
+    - name: Run E2E specs
+      run: bundle exec rake spec:e2e
