@@ -14,6 +14,11 @@ module Ready
       # and a document such as "---" parses to nil.
       document = (YAML.parse_file(path.to_s) if path.exist?)
       config = (document.to_ruby if document) || {}
+
+      unless config.is_a?(Hash)
+        raise Error, "#{path}: readyfile must be a YAML mapping of gems:/executables:, got #{config.class}"
+      end
+
       new config, build_dir:, path:
     end
 
