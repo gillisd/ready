@@ -9,7 +9,7 @@ module Ready
   # completion is detected by a marker printed after the command, using zsh's
   # `''` quote-splitting so the keystroke echo can never match the marker output.
   class PtyShell
-    PROMPT = "@@P> "
+    PROMPT = "@@P> ".freeze
     # IO#expect's timeout is inter-character, so also cap each run() with a total
     # deadline (Timeout) to turn a silent hang into a loud failure.
     CHAR_TIMEOUT = 30
