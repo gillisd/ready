@@ -7,8 +7,7 @@ module Ready
   class ByExecutable
     def initialize(
       current_ruby: RbConfig.ruby,
-      by_bin: Gem.activate_bin_path("by", "by"),
-      by_sockpath: ENV.fetch("READY_SOCK_PATH")
+      by_bin: Gem.activate_bin_path("by", "by")
     )
       @current_ruby = current_ruby
       @by_bin = by_bin
