@@ -21,7 +21,11 @@ module Ready
       # @param [Array<String>] tasks
       #   The rake task name(s) to run.
       def rake(*tasks)
-        exit(1) unless system(RbConfig.ruby, "-S", "rake", *tasks, chdir: Ready.root.to_s)
+        return if system(RbConfig.ruby, "-S", "rake", *tasks, chdir: Ready.root.to_s)
+
+        # Propagate rake's own exit status where we can; fall back to 1 if the
+        # process could not be spawned at all ($? unset).
+        exit($?&.exitstatus || 1)
       end
 
     end
