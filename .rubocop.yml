@@ -161,6 +161,13 @@ RSpec/InstanceVariable:
   Exclude:
     - "spec/e2e/**/*"
 
+# The e2e and benchmark suites are grouped by test type, not class namespace,
+# so their paths deliberately do not mirror the described constant.
+RSpec/SpecFilePathFormat:
+  Exclude:
+    - "spec/e2e/**/*"
+    - "spec/bench/**/*"
+
 # Trailing commas in multiline literals and arguments.
 Style/TrailingCommaInArrayLiteral:
   EnforcedStyleForMultiline: comma
