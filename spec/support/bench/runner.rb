@@ -15,11 +15,11 @@ module Ready
     class Runner
       attr_reader :rbenv_shim_overhead
 
-      def initialize(executable: "irb", library: "irb", rounds: 15, warmups: 3, rbenv: rbenv_available?)
-        @protocol = Protocol.new(executable_name: executable, library:, rounds:, warmups:)
+      def initialize(protocol: Protocol.default, rbenv: rbenv_available?)
+        @protocol = protocol
         @rbenv = rbenv
-        @cold_result = ArmResult.new(name: :cold, warmups:)
-        @hot_result = ArmResult.new(name: :hot, warmups:)
+        @cold_result = ArmResult.new(name: :cold, warmups: protocol.warmups)
+        @hot_result = ArmResult.new(name: :hot, warmups: protocol.warmups)
         @rbenv_launch_samples = []
       end
 
@@ -144,7 +144,8 @@ module Ready
       end
 
       def harness_command(run_id, command_word)
-        "bench_harness #{run_id} -- #{command_word} --version >/dev/null 2>&1"
+        workload = [command_word, *@protocol.arguments].join(" ")
+        "bench_harness #{run_id} -- #{workload} >/dev/null 2>&1"
       end
 
       def hot_setup(run_id)

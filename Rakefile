@@ -22,6 +22,16 @@ namespace :spec do
   end
 end
 
+def bench_protocol
+  Ready::Bench::Protocol.new(
+    executable_name: ENV.fetch("BENCH_EXE", "ri"),
+    library: ENV.fetch("BENCH_LIB", "rdoc"),
+    arguments: ENV.fetch("BENCH_ARGS", "TCPServer").split,
+    rounds: Integer(ENV.fetch("BENCH_RUNS", "15")),
+    warmups: Integer(ENV.fetch("BENCH_WARMUPS", "3")),
+  )
+end
+
 def bench_runner
   require "ready"
   require "zeitwerk"
@@ -29,16 +39,11 @@ def bench_runner
     loader.push_dir(Pathname(__dir__) / "spec/support", namespace: Ready)
     loader.setup
   end
-  Ready::Bench::Runner.new(
-    executable: ENV.fetch("BENCH_EXE", "irb"),
-    library: ENV.fetch("BENCH_LIB", "irb"),
-    rounds: Integer(ENV.fetch("BENCH_RUNS", "15")),
-    warmups: Integer(ENV.fetch("BENCH_WARMUPS", "3")),
-  )
+  Ready::Bench::Runner.new(protocol: bench_protocol)
 end
 
 desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server + rbenv). " \
-     "Choose the target with BENCH_EXE=<executable> BENCH_LIB=<library>."
+     "Choose the target with BENCH_EXE=<executable> BENCH_LIB=<library> BENCH_ARGS=<arguments>."
 task :bench do
   bench_runner.call.render
 end

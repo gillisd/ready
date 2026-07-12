@@ -5,10 +5,22 @@ module Ready
     # table with one statistic per column (never two values in a cell), the
     # full-span delta, a cross-check of the in-shell numbers against the pty
     # driver's independently observed wall clock, and -- when verbose -- a
-    # legend table explaining every span row.
+    # legend table explaining every span row plus the harness vocabulary.
     class Report
       ROW = "%<span>-18s %<cold_median>13s %<cold_minimum>13s %<hot_median>13s %<hot_minimum>13s".freeze
       LEGEND_ROW = "%<span>-18s %<interval>-41s %<summary>-8s %<description>s".freeze
+      TERM_ROW = "%<term>-13s %<meaning>s".freeze
+
+      TERMS = {
+        arm: "one side of the comparison -- cold boots a fresh process per run, " \
+             "hot dispatches to the warm by-server",
+        round: "one interleaved pass running both arms back to back, order " \
+               "alternating per round to cancel drift",
+        run: "a single timed invocation inside an arm, identified <arm>.<round> " \
+             "(cold.3 is round 3's cold run)",
+        "cross-check": "the pty driver's outside wall clock against the in-shell " \
+                       "marks; the delta is driver overhead",
+      }.freeze
 
       def initialize(cold:, hot:, protocol:, rbenv_shim_overhead: nil, verbose: false)
         @cold = cold
@@ -25,20 +37,24 @@ module Ready
         render_full_delta
         @arms.each { render_wall_clock_check(it) }
         render_rbenv_shim_overhead
-        render_legend if @verbose
+        return unless @verbose
+
+        render_legend
+        render_terms
       end
 
       private
 
       def render_preamble
         tool = @protocol.executable_name
+        hot_invocation = ["ready_#{tool}", *@protocol.arguments].join(" ")
         puts "ready startup benchmark"
-        puts "tool under test:   #{tool}, invoked as: #{tool} --version"
+        puts "tool under test:   #{tool}, invoked as: #{@protocol.invocation}"
         puts "cold arm:          a fresh Ruby boot per run, through an instrumented copy of its rubygems stub"
-        puts "hot arm:           ready_#{tool} dispatching to a warm by-server (#{@protocol.library} preloaded)"
+        puts "hot arm:           #{hot_invocation} dispatching to a warm by-server (#{@protocol.library} preloaded)"
         puts "protocol:          #{@protocol.rounds} measured rounds per arm (+#{@protocol.warmups} warmup, " \
              "excluded), cold/hot order alternating"
-        puts "choose the target: BENCH_EXE=<executable> BENCH_LIB=<library> rake bench"
+        puts "choose the target: BENCH_EXE=<executable> BENCH_LIB=<library> BENCH_ARGS=<arguments> rake bench"
         puts "all durations in milliseconds"
         puts
       end
@@ -102,6 +118,11 @@ module Ready
         interval = "#{span.opening_mark} -> #{span.closing_mark}"
         puts format(LEGEND_ROW, span: span.label, interval:, summary: span.summary,
                                 description: span.description)
+      end
+
+      def render_terms
+        puts "\nterms"
+        TERMS.each { |term, meaning| puts format(TERM_ROW, term:, meaning:) }
       end
     end
   end

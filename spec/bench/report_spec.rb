@@ -2,7 +2,8 @@ RSpec.describe Ready::Bench::Report do
   subject(:report) { described_class.new(cold: arm_result(:cold), hot: arm_result(:hot), protocol:) }
 
   let(:protocol) do
-    Ready::Bench::Protocol.new(executable_name: "irb", library: "irb", rounds: 1, warmups: 0)
+    Ready::Bench::Protocol.new(executable_name: "ri", library: "rdoc", arguments: ["TCPServer"],
+                               rounds: 1, warmups: 0)
   end
 
   def arm_result(name)
@@ -17,7 +18,7 @@ RSpec.describe Ready::Bench::Report do
   end
 
   it "says exactly what was tested in the preamble" do
-    expect { report.render }.to output(/invoked as: irb --version/).to_stdout
+    expect { report.render }.to output(/invoked as: ri TCPServer/).to_stdout
   end
 
   it "gives every statistic its own column" do
@@ -35,6 +36,10 @@ RSpec.describe Ready::Bench::Report do
 
     it "appends a legend explaining every span row" do
       expect { report.render }.to output(/what it measures/).to_stdout
+    end
+
+    it "defines the harness vocabulary" do
+      expect { report.render }.to output(/^terms$/).to_stdout
     end
   end
 end
