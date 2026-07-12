@@ -25,17 +25,18 @@ module Ready
         end
       end
 
-      def initialize(exe:, exe_path:, sandbox:, marks_path:)
+      def initialize(exe:, rendered:, sandbox:, marks_path:)
         @exe = exe
-        @exe_path = Pathname(exe_path)
+        @rendered = rendered
         @sandbox = sandbox
         @marks_path = Pathname(marks_path)
       end
 
       # A faithful ready_<exe> zsh function (mirrors fn.zsh.erb) whose inlined
-      # source carries the marks. The source is the real Ready::Executable render.
+      # source carries the marks. +rendered+ is the real Ready::Executable render
+      # output (resolved by name, exactly as production `ready gem <exe>` does).
       def stub_function
-        source = self.class.instrument_source(Ready::Executable.new(@exe_path.to_s).render)
+        source = self.class.instrument_source(@rendered)
         <<~ZSH
           ready_#{@exe}() {
             emulate -L zsh

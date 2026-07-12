@@ -76,25 +76,26 @@ module Ready
         @marks = @tmp / "marks"
         @marks.write("")
         @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: [@lib])
-        @exe_path = resolve_exe_path
         @cold_arm = ColdArm.new(exe: @exe, workdir: @tmp / "cold", marks_path: @marks)
         @cold_arm.instrument!
-        @hot_arm = HotArm.new(exe: @exe, exe_path: @exe_path, sandbox: @sandbox, marks_path: @marks)
+        @hot_arm = HotArm.new(exe: @exe, rendered: render_hot_source, sandbox: @sandbox, marks_path: @marks)
         (@tmp / "stub.zsh").write(@hot_arm.stub_function)
       end
 
-      # irb is a default (unbundled) gem, so resolve its exe in a scrubbed env
-      # where GEM_PATH/GEM_HOME/BUNDLE point at ruby's own default gems. The
-      # returned path contains "exe", so Executable inlines it via its direct
-      # branch without a resolver change.
-      def resolve_exe_path
-        expr = "print Gem.activate_bin_path(#{@lib.inspect}, #{@exe.inspect})"
+      # Render the hot stub source the way production `ready gem <exe>` does: by
+      # NAME, so Executable resolves via Gem.bin_path and reads the real file
+      # whether the binstub lives in bin/ or exe/. Runs in a scrubbed, unbundled
+      # subprocess because the bench itself runs under this project's bundle,
+      # where the target (e.g. ronin) is not a bundled gem.
+      def render_hot_source
+        script = "require \"ready\"; print Ready::Executable.new(#{@exe.inspect}).render"
         out = Bundler.with_unbundled_env do
-          IO.popen({ "GEM_HOME" => nil, "GEM_PATH" => nil }, [RbConfig.ruby, "-e", expr], &:read)
+          IO.popen({ "GEM_HOME" => nil, "GEM_PATH" => nil },
+                   [RbConfig.ruby, "-I", (Ready.root / "lib").to_s, "-e", script], &:read)
         end
-        raise "cannot resolve #{@exe} exe path: #{out}" unless $CHILD_STATUS.success? && !out.empty?
+        raise "cannot render #{@exe}: #{out}" unless $CHILD_STATUS.success? && !out.empty?
 
-        Pathname(out.strip)
+        out
       end
 
       def round(iteration)
