@@ -6,11 +6,15 @@ module Ready
     # It shares the tool's own name, so nothing downstream can tell it apart
     # from the real shim.
     class RbenvShim < Shim
-      def command_word = executable_name
+      def command_word
+        executable_name
+      end
 
       private
 
-      def exec_line = %(exec rbenv exec "#{executable_name}" "$@")
+      def exec_line
+        %(exec rbenv exec "#{executable_name}" "$@")
+      end
     end
   end
 end

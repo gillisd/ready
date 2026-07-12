@@ -26,9 +26,13 @@ module Ready
         @durations = durations.dup.freeze
       end
 
-      def duration_of(label) = @durations[label]
+      def duration_of(label)
+        @durations[label]
+      end
 
-      def measured?(label) = @durations.key?(label)
+      def measured?(label)
+        @durations.key?(label)
+      end
     end
   end
 end

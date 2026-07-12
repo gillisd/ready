@@ -35,13 +35,21 @@ module Ready
         teardown
       end
 
-      def cold_summary = @cold_result.summary
+      def cold_summary
+        @cold_result.summary
+      end
 
-      def hot_summary = @hot_result.summary
+      def hot_summary
+        @hot_result.summary
+      end
 
-      def report = Report.new(cold: @cold_result, hot: @hot_result, rbenv_shim_overhead:)
+      def report
+        Report.new(cold: @cold_result, hot: @hot_result, rbenv_shim_overhead:)
+      end
 
-      def render = report.render
+      def render
+        report.render
+      end
 
       def teardown
         @sandbox&.teardown
@@ -92,16 +100,16 @@ module Ready
       end
 
       def run_cold(run_id)
-        waterfall, wall_seconds = cold_invocation(run_id, shim: @cold_arm.direct_shim)
-        @cold_result.record(waterfall:, wall_seconds:)
+        measurement = cold_invocation(run_id, shim: @cold_arm.direct_shim)
+        @cold_result.record(measurement)
       end
 
       # The rbenv variant exists only to isolate the real shim's cost: its
       # :launch also carries the `rbenv exec` chain, so min(rbenv launch)
       # minus the direct arm's launch floor is the shim overhead.
       def probe_rbenv_shim(run_id)
-        waterfall, = cold_invocation(run_id, shim: @cold_arm.rbenv_shim)
-        launch = waterfall.duration_of(:launch)
+        measurement = cold_invocation(run_id, shim: @cold_arm.rbenv_shim)
+        launch = measurement.waterfall.duration_of(:launch)
         @rbenv_launch_samples << launch if launch
       end
 
@@ -110,8 +118,8 @@ module Ready
           drop_stale_gem_home
           shell = Ready::PtyShell.new(@cold_arm.environment_for(run_id:))
           shell.run("source #{profiler_path}")
-          _output, wall_seconds = shell.run(harness_command(run_id, shim.command_word))
-          [waterfall_for(run_id), wall_seconds]
+          harness_run = shell.run(harness_command(run_id, shim.command_word))
+          measurement_for(run_id, harness_run)
         ensure
           shell&.close
         end
@@ -125,9 +133,9 @@ module Ready
           drop_stale_gem_home
           shell = Ready::PtyShell.new(@sandbox.shell_env)
           shell.run(hot_setup(run_id))
-          _output, wall_seconds = shell.run(harness_command(run_id, "ready_#{executable_name}"))
-          waterfall = waterfall_for(run_id)
-          @hot_result.record(waterfall:, wall_seconds:)
+          harness_run = shell.run(harness_command(run_id, "ready_#{executable_name}"))
+          measurement = measurement_for(run_id, harness_run)
+          @hot_result.record(measurement)
         ensure
           shell&.close
         end
@@ -144,11 +152,15 @@ module Ready
          "source #{@tmp / "stub.zsh"}"].join("; ")
       end
 
-      def profiler_path = Ready.root / "bench" / "prof.zsh"
+      def profiler_path
+        Ready.root / "bench" / "prof.zsh"
+      end
 
-      def waterfall_for(run_id)
+      # Pairs the run's in-shell waterfall with the wall clock the pty driver
+      # observed for the harness command.
+      def measurement_for(run_id, harness_run)
         run = @marks_log.run(run_id)
-        Waterfall.of(run)
+        Measurement.new(waterfall: Waterfall.of(run), wall_clock_seconds: harness_run.wall_clock_seconds)
       end
 
       def derive_rbenv_shim_overhead
@@ -165,7 +177,9 @@ module Ready
         %w[GEM_HOME GEM_PATH].each { ENV.delete(it) if ENV[it] && !File.directory?(ENV[it]) }
       end
 
-      def rbenv_available? = system("command -v rbenv >/dev/null 2>&1")
+      def rbenv_available?
+        system("command -v rbenv >/dev/null 2>&1")
+      end
     end
   end
 end

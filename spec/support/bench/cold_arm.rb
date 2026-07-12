@@ -58,9 +58,13 @@ module Ready
         instrumented_stub_path.write(stub.instrumented_source)
       end
 
-      def prelude_path = workdir / "prelude.rb"
+      def prelude_path
+        workdir / "prelude.rb"
+      end
 
-      def instrumented_stub_path = workdir / "stub"
+      def instrumented_stub_path
+        workdir / "stub"
+      end
     end
   end
 end

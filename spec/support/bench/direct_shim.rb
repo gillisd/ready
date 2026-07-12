@@ -8,7 +8,9 @@ module Ready
     # interpreter boot, and the stub copy's own marks split every layer after
     # it.
     class DirectShim < Shim
-      def command_word = "#{executable_name}_direct"
+      def command_word
+        "#{executable_name}_direct"
+      end
 
       private
 
@@ -18,7 +20,9 @@ module Ready
         @stub_path = stub_path
       end
 
-      def exec_line = %(exec "#{RbConfig.ruby}" "#{stub_path}" "$@")
+      def exec_line
+        %(exec "#{RbConfig.ruby}" "#{stub_path}" "$@")
+      end
     end
   end
 end
