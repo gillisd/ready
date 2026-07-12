@@ -1,4 +1,7 @@
 /.bundle/
+/vendor/
+/.idea/
+/talk.tar.gz
 /.yardoc
 /_yardoc/
 /coverage/
