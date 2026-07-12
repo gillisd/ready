@@ -4,12 +4,15 @@ module Ready
     # Parses a shared mark log into per-run spans (ms). Log lines are
     # "<run_id> <mark_name> <realtime_seconds>".
     class Marks
+      # `launch` = shim_start->ruby_up: interpreter boot + rubygems autoload,
+      # plus the rbenv-exec chain in the rbenv arm (isolated as the derived
+      # `rbenv_shim` = rbenv.launch - direct.launch, computed by the Runner).
       SPANS = [
         ["shell", "envelope_start", "shim_start"],
-        ["rbenv_shim", "shim_start", "ruby_up"],
+        ["launch", "shim_start", "ruby_up"],
         ["rubygems", "ruby_up", "rubygems_ready"],
-        ["dep_activate", "rubygems_ready", "dep_activated"],
-        ["tool_run", "dep_activated", "ruby_exit"],
+        ["dep_activate", "rubygems_ready", "bin_path_resolved"],
+        ["tool_run", "bin_path_resolved", "ruby_exit"],
         ["reap", "ruby_exit", "envelope_end"],
         ["dispatch_infra", "envelope_start", "server_entry"],
         ["server_tool_run", "server_entry", "envelope_end"],
