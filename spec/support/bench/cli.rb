@@ -16,7 +16,8 @@ module Ready
       usage "[options] [EXECUTABLE [ARGUMENT ...]]"
 
       option :library, value: { type: String, usage: "NAME" },
-                       desc: "Gem the hot by-server preloads (default: rdoc)"
+                       desc: "Gem that ships EXECUTABLE, preloaded into the warm server so the " \
+                             "hot arm's requires are already paid (default: rdoc, which ships ri)"
 
       option :rounds, value: { type: Integer, usage: "N" },
                       desc: "Measured rounds per arm (default: 15)"

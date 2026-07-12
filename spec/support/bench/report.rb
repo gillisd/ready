@@ -54,7 +54,7 @@ module Ready
         puts "hot arm:           #{hot_invocation} dispatching to a warm by-server (#{@protocol.library} preloaded)"
         puts "protocol:          #{@protocol.rounds} measured rounds per arm (+#{@protocol.warmups} warmup, " \
              "excluded), cold/hot order alternating"
-        puts "choose the target: bin/bench EXECUTABLE [ARGUMENT ...] --library GEM  (BENCH_* env works too)"
+        puts "choose the target: bin/bench EXECUTABLE [ARGUMENT ...] --library GEM"
         puts "all durations in milliseconds"
         puts
       end
