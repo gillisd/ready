@@ -34,15 +34,15 @@ module Ready
       end
 
       def render_pairs
-        deltas = @runs["hot"].zip(@runs["cold"]).map { |h, c| h["TOTAL"] - c["TOTAL"] }
-        puts format("\npaired TOTAL delta (hot - cold): median %<med>+.1fms  min %<min>+.1fms  " \
+        deltas = @runs["hot"].zip(@runs["cold"]).map { |h, c| h["full"] - c["full"] }
+        puts format("\npaired full-envelope delta (hot - cold): median %<med>+.1fms  min %<min>+.1fms  " \
                     "max %<max>+.1fms  n=%<n>d",
                     med: Stats.median(deltas), min: deltas.min, max: deltas.max, n: deltas.size)
       end
 
       def render_pty_check
         %w[cold hot].each do |arm|
-          inshell = Stats.median(@runs[arm].map { |s| s["TOTAL"] })
+          inshell = Stats.median(@runs[arm].map { |s| s["full"] })
           outside = Stats.median(@pty[arm]) * 1000.0
           puts format("pty cross-check %<arm>-5s in-shell %<ins>7.1fms  pty-observed %<out>7.1fms  " \
                       "(delta %<d>.1fms driver overhead)",
