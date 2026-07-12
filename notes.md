@@ -42,5 +42,30 @@ Turns out this kind of thing has a history in ruby, and some of you know exactly
 I'm talking of course, about our buddy who peaked in high school, and one who I still personally call a friend, Mr. rails/spring
 
 
+---
+
+## "but what about bootsnap?" (prep for the reflexive objection)
+
+Someone will raise bootsnap. It's not a threat, it's a gift — the honest answer shows we understand the layers better than the objection does. Bootsnap and ready operate on DISJOINT layers and don't actually compete.
+
+What bootsnap does (two things):
+1. load-path cache — memoizes `require 'x'` -> absolute path so you skip the $LOAD_PATH walk on every require.
+2. compile cache — stores RubyVM::InstructionSequence bytecode so a require skips parse+compile. (also caches YAML/JSON compile, immaterial here.)
+
+The ordering is the whole game. Bootsnap is itself a gem, and it hooks rubygems' already-patched Kernel#require. So rubygems must be fully loaded (and bundler/setup run first, to populate $LOAD_PATH) before `bootsnap/setup` can layer on top. Its interception begins strictly AFTER rubygems + bundler are up. It cannot, even in principle, accelerate its own prerequisites.
+
+Map that onto our layers (numbers from a real run of `ronin`):
+- shell (~5ms) + rbenv (~40ms): not in ruby yet -> bootsnap can't touch it.
+- `require "rubygems"` (~45ms): loads BEFORE bootsnap exists -> can't touch it.
+- `Gem.activate_bin_path` — spec resolution + dependency activation (~343ms, the biggest layer): can't touch it.
+- tool + its deps' code getting required (~82ms): partially yes, this is bootsnap's home.
+
+So bootsnap is blind to the two biggest layers. And the biggest one for a precise reason worth saying out loud: the ISeq cache saves parse+compile, NOT execution. Activation is rubygems EXECUTING — scanning specifications/, building spec stubs, resolving the graph. There's no bytecode to cache; it's work, not compilation. Bootsnap only shaves the tail, and only the compile slice of the tail.
+
+And bootsnap is project-centered; ready is global. This isn't just cultural — there's no mechanism. Bootsnap's cache is anchored to a project (tmp/cache/bootsnap) and armed in that app's boot.rb. A globally-installed colorls / ronin / ri has no boot.rb you own. Your only lever is jamming RUBYOPT=-rbootsnap/setup into every ruby invocation — and even then you (a) still pay rubygems + activation in full, (b) pay bootsnap's setup on every call, (c) have a global cache with no project to scope it. You basically can't apply it here, usefully.
+
+Synthesis line for the talk: bootsnap shrinks the TAIL (compiling/resolving lots of code) inside a process that's already past rubygems and activation — it shines when a big app boots the same huge tree repeatedly in dev. ready eliminates the HEAD (shell, rbenv, rubygems load, dependency activation) by keeping a process hot past all of it. They're complementary, not competing — a ready server could even use bootsnap internally to speed its own one-time warmup. For the per-invocation tax on a global CLI, bootsnap structurally cannot reach where the time is. ready is aimed exactly there.
+
+
 
 
