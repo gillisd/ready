@@ -59,16 +59,17 @@ def bench_runner
   Ready::Bench::Runner.new(protocol: bench_protocol)
 end
 
-# Appends this run's headline numbers as "executable,arm,full_ms" rows so a
-# caller sequencing several benchmarks (bin/bench --plot) can chart them.
+# Appends this run's headline numbers so a caller sequencing several
+# benchmarks (bin/bench --plot) can chart them afterwards.
 def export_bench_results(runner)
   results_path = ENV.fetch("BENCH_RESULTS", nil)
   return unless results_path
 
-  cold_full = runner.cold_summary.duration_of(:full)
-  hot_full = runner.hot_summary.duration_of(:full)
-  rows = "#{runner.executable_name},cold,#{cold_full}\n#{runner.executable_name},hot,#{hot_full}\n"
-  Pathname(results_path).write(rows, mode: "a")
+  results = Ready::Bench::ResultsLog.new(results_path)
+  results.append(command: runner.invocation, arm: :cold,
+                 full_milliseconds: runner.cold_summary.duration_of(:full))
+  results.append(command: runner.invocation, arm: :hot,
+                 full_milliseconds: runner.hot_summary.duration_of(:full))
 end
 
 def run_bench(verbose:)

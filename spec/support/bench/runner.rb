@@ -27,6 +27,12 @@ module Ready
         @protocol.executable_name
       end
 
+      # The command as typed ("ri TCPServer") -- the plot's per-command
+      # identity, so the same executable on two inputs stays two bars.
+      def invocation
+        @protocol.invocation
+      end
+
       def call
         build
         (1..(@protocol.rounds + @protocol.warmups)).each { round(it) }
@@ -143,9 +149,12 @@ module Ready
         end
       end
 
+      # stdin is /dev/null so a bare interactive tool (ri, irb) reads EOF and
+      # exits at once instead of blocking on the pty for its prompt; a command
+      # that never reads stdin (ri TCPServer) is unaffected.
       def harness_command(run_id, command_word)
         workload = [command_word, *@protocol.arguments].join(" ")
-        "bench_harness #{run_id} -- #{workload} >/dev/null 2>&1"
+        "bench_harness #{run_id} -- #{workload} </dev/null >/dev/null 2>&1"
       end
 
       def hot_setup(run_id)

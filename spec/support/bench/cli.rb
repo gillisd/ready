@@ -30,7 +30,12 @@ module Ready
       option :verbose, short: "-v",
                        desc: "Append the span legend and the terms table"
 
-      option :plot, desc: "Chart the cold vs hot full times with youplot after the runs"
+      option :plot, value: {
+                      type: { "stacked" => :stacked, "youplot" => :youplot },
+                    },
+                    desc: "Chart cold vs hot per command after the runs: stacked draws one " \
+                          "bar per command (hot segment + what ready eliminates), youplot " \
+                          "draws stock side-by-side pairs"
 
       argument :command, required: false,
                          repeats: true,
@@ -44,7 +49,7 @@ module Ready
         "",
         "ri TCPServer",
         "--readyfile readyfile ri TCPServer -- ronin help -- kamal version",
-        "--readyfile readyfile --plot",
+        "--readyfile readyfile --plot stacked",
       ]
 
       #
@@ -103,6 +108,17 @@ module Ready
         options[:verbose] ? "bench:verbose" : "bench"
       end
 
+      #
+      # The renderer for the chosen --plot style: our stacked bars, or the
+      # stock youplot pairs.
+      #
+      def plotter_for(style, comparisons)
+        case style
+        in :stacked then Plot::Stacked.new(comparisons)
+        in :youplot then Plot::Youplot.new(comparisons)
+        end
+      end
+
       private
 
       def flag_environment
@@ -139,17 +155,10 @@ module Ready
         @results_path ||= Pathname(Dir.mktmpdir("bench")) / "results.csv"
       end
 
-      # Feeds "label,value" lines to youplot's barplot -- one bar per
-      # executable+arm, so cold and hot sit side by side.
+      # Reads back every run's results and renders them in the chosen style.
       def plot_results
-        bars = results_path.readlines(chomp: true).map do |row|
-          executable, arm, full_milliseconds = row.split(",")
-          "#{executable} #{arm},#{Float(full_milliseconds).round(1)}"
-        end
-        uplot = Gem.bin_path("youplot", "uplot")
-        IO.popen([RbConfig.ruby, uplot, "bar", "-d", ",", "-t", "full startup (ms): cold vs hot"], "w") do |pipe|
-          pipe.puts(bars)
-        end
+        comparisons = ResultsLog.new(results_path).comparisons
+        plotter_for(options[:plot], comparisons).render
       end
 
       def run_rake(environment, task)
