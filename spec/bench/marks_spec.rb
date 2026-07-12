@@ -8,32 +8,40 @@ RSpec.describe Ready::Bench::Marks do
     file.path
   end
 
-  let(:log) do
+  let(:cold) do
     fixture(<<~LOG)
-      hot.1 envelope_start 1000.000
-      hot.1 ruby_up 1000.010
-      hot.1 entry_start 1000.020
-      hot.1 lib_loaded 1000.050
-      hot.1 cli_done 1000.070
-      hot.1 ruby_exit 1000.080
-      hot.1 envelope_end 1000.090
+      cold.1 envelope_start 1000.000
+      cold.1 shim_start 1000.001
+      cold.1 ruby_up 1000.050
+      cold.1 rubygems_ready 1000.100
+      cold.1 dep_activated 1000.140
+      cold.1 ruby_exit 1000.243
+      cold.1 envelope_end 1000.244
     LOG
   end
 
-  it "parses each run into a mark=>time map" do
-    expect(described_class.parse(log)["hot.1"]["cli_done"]).to eq(1000.070)
+  it "parses a run into a mark=>time map" do
+    expect(described_class.parse(cold)["cold.1"]["dep_activated"]).to eq(1000.140)
   end
 
-  it "computes span durations in milliseconds" do
-    spans = described_class.spans(described_class.parse(log)["hot.1"])
+  it "computes ready layer spans in ms" do
+    spans = described_class.spans(described_class.parse(cold)["cold.1"])
     aggregate_failures do
-      expect(spans["TOTAL"]).to be_within(1e-6).of(90.0)
-      expect(spans["lib_load"]).to be_within(1e-6).of(30.0)
+      expect(spans["rbenv_shim"]).to be_within(1e-6).of(49.0)
+      expect(spans["rubygems"]).to be_within(1e-6).of(50.0)
+      expect(spans["dep_activate"]).to be_within(1e-6).of(40.0)
+      expect(spans["tool_run"]).to be_within(1e-6).of(103.0)
+      expect(spans["full"]).to be_within(1e-6).of(244.0)
     end
   end
 
-  it "omits spans whose endpoints are missing" do
-    marks = { "envelope_start" => 1.0, "envelope_end" => 1.1 }
-    expect(described_class.spans(marks).keys).to eq(["TOTAL"])
+  it "omits spans whose endpoints are missing (hot arm has no shim)" do
+    hot = { "envelope_start" => 1.0, "server_entry" => 1.053, "envelope_end" => 1.072 }
+    spans = described_class.spans(hot)
+    aggregate_failures do
+      expect(spans).not_to have_key("rbenv_shim")
+      expect(spans["dispatch_infra"]).to be_within(1e-6).of(53.0)
+      expect(spans["full"]).to be_within(1e-6).of(72.0)
+    end
   end
 end

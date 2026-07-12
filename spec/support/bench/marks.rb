@@ -5,14 +5,15 @@ module Ready
     # "<run_id> <mark_name> <realtime_seconds>".
     class Marks
       SPANS = [
-        ["spawn+interp", "envelope_start", "ruby_up"],
-        ["rubygems_req", "ruby_up", "rubygems_loaded"],
-        ["preamble", nil, "entry_start"],
-        ["lib_load", "entry_start", "lib_loaded"],
-        ["cli_run", "lib_loaded", "cli_done"],
-        ["teardown", "cli_done", "ruby_exit"],
+        ["shell", "envelope_start", "shim_start"],
+        ["rbenv_shim", "shim_start", "ruby_up"],
+        ["rubygems", "ruby_up", "rubygems_ready"],
+        ["dep_activate", "rubygems_ready", "dep_activated"],
+        ["tool_run", "dep_activated", "ruby_exit"],
         ["reap", "ruby_exit", "envelope_end"],
-        ["TOTAL", "envelope_start", "envelope_end"],
+        ["dispatch_infra", "envelope_start", "server_entry"],
+        ["server_tool_run", "server_entry", "envelope_end"],
+        ["full", "envelope_start", "envelope_end"],
       ].freeze
 
       def self.parse(path)
@@ -24,11 +25,10 @@ module Ready
         runs
       end
 
-      # The +preamble+ span starts wherever the previous mark left off, absorbing
-      # the arm difference in whether rubygems_loaded exists.
+      # Only spans whose both endpoints are present are emitted, so cold-only
+      # marks (shim) and hot-only marks (server_entry) each yield their own rows.
       def self.spans(marks)
         SPANS.each_with_object({}) do |(label, from, to), out|
-          from ||= marks.key?("rubygems_loaded") ? "rubygems_loaded" : "ruby_up"
           next unless marks[from] && marks[to]
 
           out[label] = (marks[to] - marks[from]) * 1000.0
