@@ -62,8 +62,20 @@ RSpec.describe Ready::Bench::CLI do
     end
 
     it "routes results to a file only when plotting" do
-      cli.option_parser.parse(["--plot"])
+      cli.option_parser.parse(["--plot", "stacked"])
       expect(cli.environment_for(nil).keys).to eq(["BENCH_RESULTS"])
+    end
+  end
+
+  describe "#plotter_for" do
+    let(:comparisons) { [] }
+
+    it "draws stacked bars with our renderer" do
+      expect(cli.plotter_for(:stacked, comparisons)).to be_a(Ready::Bench::Plot::Stacked)
+    end
+
+    it "draws side-by-side pairs with stock youplot" do
+      expect(cli.plotter_for(:youplot, comparisons)).to be_a(Ready::Bench::Plot::Youplot)
     end
   end
 
