@@ -6,6 +6,7 @@ require "zeitwerk"
 # Ready::Bench::Span, ...). A second loader may share a namespace owned by the
 # gem's for_gem loader.
 Zeitwerk::Loader.new.tap do |loader|
+  loader.inflector.inflect("cli" => "CLI")
   loader.push_dir(Pathname(__dir__) / "support", namespace: Ready)
   loader.setup
 end
