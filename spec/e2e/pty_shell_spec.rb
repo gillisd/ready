@@ -17,4 +17,16 @@ RSpec.describe Ready::PtyShell, :e2e do
       expect(result.output).to include("xyz123")
     end
   end
+
+  context "when the foreground command swallows the exit keystroke" do
+    it "force-kills the shell instead of blocking forever" do
+      # Bypasses run's marker sync on purpose: cat occupies the pty and eats
+      # every subsequent line, exactly like an interactive tool under bench.
+      shell.instance_variable_get(:@in).puts("cat")
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      shell.close
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      expect(elapsed).to be < (described_class::CLOSE_DEADLINE + 3)
+    end
+  end
 end

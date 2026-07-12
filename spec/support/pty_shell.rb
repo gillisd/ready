@@ -20,6 +20,11 @@ module Ready
     # deadline (Timeout) to turn a silent hang into a loud failure.
     CHAR_TIMEOUT = 30
     RUN_DEADLINE = 45
+    # How long close waits for a graceful exit before force-killing. The exit
+    # keystroke reaches whatever is reading the pty -- if that is a stuck
+    # foreground command rather than zsh (an interactive tool waiting on
+    # stdin), exit never runs and only a kill reclaims the process.
+    CLOSE_DEADLINE = 5
 
     def initialize(env = {})
       assignments = env.map { |k, v| "#{k}=#{Shellwords.escape(v.to_s)}" }.join(" ")
@@ -45,12 +50,21 @@ module Ready
 
     def close
       send_line("exit")
-      Process.wait(@pid)
+      Timeout.timeout(CLOSE_DEADLINE) { Process.wait(@pid) }
+    rescue Timeout::Error
+      force_kill
     rescue Errno::ECHILD, Errno::EIO
       nil
     end
 
     private
+
+    def force_kill
+      Process.kill("KILL", @pid)
+      Process.wait(@pid)
+    rescue Errno::ESRCH, Errno::ECHILD
+      nil
+    end
 
     def send_line(line)
       @in.puts(line)
