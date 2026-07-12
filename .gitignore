@@ -2,6 +2,10 @@
 /vendor/
 /.idea/
 /talk.tar.gz
+# Local skill caches dropped by the assistant tooling; regenerated on reload.
+/_claude/poodr/
+/_claude/rspec3/
+/_claude/zsh/
 /.yardoc
 /_yardoc/
 /coverage/
