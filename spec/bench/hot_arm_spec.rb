@@ -20,12 +20,12 @@ RSpec.describe Ready::Bench::HotArm do
   end
 
   describe "#stub_function" do
-    it "marks stub_entry as the zsh function's first act after emulate" do
+    it "marks command_start as the zsh function's first act after emulate" do
       sandbox = instance_double(Ready::Sandbox, sock_path: Pathname("/tmp/bench/ready.sock"))
       marks_log = Ready::Bench::MarksLog.new("/tmp/bench/marks")
       hot_arm = described_class.new(executable_name: "irb", rendered_source: "IRB.start(__FILE__)\n",
                                     sandbox:, marks_log:)
-      expect(hot_arm.stub_function).to include(%(  emulate -L zsh\n  bench_mark stub_entry\n))
+      expect(hot_arm.stub_function).to include(%(  emulate -L zsh\n  bench_mark command_start\n))
     end
   end
 end

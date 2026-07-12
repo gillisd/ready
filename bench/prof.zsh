@@ -7,7 +7,7 @@ zmodload zsh/datetime
 
 # bench_mark <mark_name>
 # Appends one mark for the current run. Called from inside measured regions
-# (the generated hot stub marks stub_entry with it), so it stays a bare
+# (the generated hot stub marks command_start with it), so it stays a bare
 # one-line append -- no option juggling to keep its own cost negligible.
 # The timestamp is expanded before the redirection opens the file, so a
 # mark's own ~50us write cost always lands in the span it OPENS, never the

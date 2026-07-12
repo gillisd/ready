@@ -1,12 +1,12 @@
 RSpec.describe Ready::Bench::Span do
   subject(:span) do
-    described_class.new(label: :launch, opening_mark: :shim_start, closing_mark: :ruby_up,
+    described_class.new(label: :launch, opening_mark: :command_start, closing_mark: :ruby_up,
                         summary: :minimum, description: "interpreter boot")
   end
 
   describe "#measure" do
     it "returns the milliseconds between its two marks" do
-      run = Ready::Bench::Run.new(id: "cold.1", mark_times: { shim_start: 10.0, ruby_up: 10.064 })
+      run = Ready::Bench::Run.new(id: "cold.1", mark_times: { command_start: 10.0, ruby_up: 10.064 })
       expect(span.measure(run)).to be_within(1e-6).of(64.0)
     end
 

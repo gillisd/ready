@@ -7,13 +7,13 @@ module Ready
     # Ready::Executable render output (a copy -- no gem runtime is edited).
     # The zsh stub and the instrumented source mark:
     #
-    #   stub_entry   - first statement of the zsh stub function; everything
-    #                  before it is :stub_call, the hot path's entire "shell"
-    #                  layer (no fork, no exec -- just a function call)
-    #   server_entry - first statement of the eval'd source; stub_entry to
-    #                  here is :dispatch_overhead (client boot, socket, fork)
-    #   pre_tool     - immediately before the tool's entry call, where the
-    #                  preloaded requires end and :server_tool_run begins
+    #   command_start - first statement of the zsh stub function, closing the
+    #                   :shell span (hot pays a function call there, no fork,
+    #                   no exec -- the same boundary the cold shim marks)
+    #   server_entry  - first statement of the eval'd source; command_start
+    #                   to here is :dispatch_overhead (client boot, socket,
+    #   pre_tool      - immediately before the tool's entry call, where the
+    #                   preloaded requires end and :server_tool_run begins
     class HotArm
       TOOL_ENTRY_CALL = /^(\s*)([A-Z][\w:]*\.(?:start|run)\b|main\b)/
 
@@ -36,14 +36,14 @@ module Ready
       # A faithful ready_<name> zsh function (mirrors fn.zsh.erb) whose
       # inlined source carries the marks. +rendered_source+ is the production
       # render, resolved by NAME exactly as `ready gem <name>` does. The
-      # stub_entry mark (bench_mark comes from prof.zsh, sourced first) opens
-      # :dispatch_overhead and closes :stub_call.
+      # command_start mark (bench_mark comes from prof.zsh, sourced first)
+      # closes :shell and opens :dispatch_overhead.
       def stub_function
         instrumented = self.class.instrument_source(@rendered_source)
         <<~ZSH
           ready_#{@executable_name}() {
             emulate -L zsh
-            bench_mark stub_entry
+            bench_mark command_start
             autoload -Uz ready_by
             BY_SOCKET=#{@sandbox.sock_path} ready_by -e #{Shellwords.escape(instrumented)} "$@"
           }

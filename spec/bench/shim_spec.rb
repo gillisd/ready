@@ -16,8 +16,8 @@ RSpec.describe Ready::Bench::Shim do
       expect(workdir / shim.command_word).to be_executable
     end
 
-    it "marks shim_start, arms the prelude, and execs its variant's target", :aggregate_failures do
-      expect(script).to include("shim_start")
+    it "marks command_start, arms the prelude, and execs its variant's target", :aggregate_failures do
+      expect(script).to include("command_start")
       expect(script).to include("--disable-gems -r#{prelude_path}")
       expect(script).to include(expected_exec_line)
     end
