@@ -1,39 +1,72 @@
 module Ready
   module Bench
     ##
-    # Renders the cold-vs-hot waterfall: one row per span (median/min across
-    # each arm's measured runs), the full-span delta, and a cross-check of the
-    # in-shell numbers against the pty driver's independently observed wall
-    # clock.
+    # Renders the benchmark: a preamble saying exactly what ran, a waterfall
+    # table with one statistic per column (never two values in a cell), the
+    # full-span delta, a cross-check of the in-shell numbers against the pty
+    # driver's independently observed wall clock, and -- when verbose -- a
+    # legend table explaining every span row.
     class Report
-      ROW = "%<span>-18s %<cold>28s %<hot>28s".freeze
+      ROW = "%<span>-18s %<cold_median>13s %<cold_minimum>13s %<hot_median>13s %<hot_minimum>13s".freeze
+      LEGEND_ROW = "%<span>-18s %<interval>-41s %<summary>-8s %<description>s".freeze
 
-      def initialize(cold:, hot:, rbenv_shim_overhead: nil)
+      def initialize(cold:, hot:, protocol:, rbenv_shim_overhead: nil, verbose: false)
         @cold = cold
         @hot = hot
         @arms = [cold, hot]
+        @protocol = protocol
         @rbenv_shim_overhead = rbenv_shim_overhead
+        @verbose = verbose
       end
 
       def render
-        puts format(ROW, span: "", cold: "cold (median/min ms)", hot: "hot (median/min ms)")
-        Span.table.each { render_row(it) }
+        render_preamble
+        render_table
         render_full_delta
         @arms.each { render_wall_clock_check(it) }
         render_rbenv_shim_overhead
+        render_legend if @verbose
       end
 
       private
 
-      def render_row(span)
-        cold_cell, hot_cell = @arms.map { cell(it.samples_of(span.label)) }
-        puts format(ROW, span: span.label, cold: cold_cell, hot: hot_cell)
+      def render_preamble
+        tool = @protocol.executable_name
+        puts "ready startup benchmark"
+        puts "tool under test:   #{tool}, invoked as: #{tool} --version"
+        puts "cold arm:          a fresh Ruby boot per run, through an instrumented copy of its rubygems stub"
+        puts "hot arm:           ready_#{tool} dispatching to a warm by-server (#{@protocol.library} preloaded)"
+        puts "protocol:          #{@protocol.rounds} measured rounds per arm (+#{@protocol.warmups} warmup, " \
+             "excluded), cold/hot order alternating"
+        puts "choose the target: BENCH_EXE=<executable> BENCH_LIB=<library> rake bench"
+        puts "all durations in milliseconds"
+        puts
       end
 
-      def cell(samples)
+      def render_table
+        puts format(ROW, span: "span", cold_median: "cold median", cold_minimum: "cold minimum",
+                         hot_median: "hot median", hot_minimum: "hot minimum")
+        Span.table.each { render_row(it) }
+      end
+
+      def render_row(span)
+        puts format(ROW, span: span.label,
+                         cold_median: median_cell(@cold, span), cold_minimum: minimum_cell(@cold, span),
+                         hot_median: median_cell(@hot, span), hot_minimum: minimum_cell(@hot, span))
+      end
+
+      def median_cell(arm, span)
+        samples = arm.samples_of(span.label)
         return "-" if samples.empty?
 
-        format("%<median>9.1f / %<minimum>8.1f", median: Stats.median(samples), minimum: samples.min)
+        format("%.1f", Stats.median(samples))
+      end
+
+      def minimum_cell(arm, span)
+        samples = arm.samples_of(span.label)
+        return "-" if samples.empty?
+
+        format("%.1f", samples.min)
       end
 
       def render_full_delta
@@ -56,6 +89,19 @@ module Ready
         puts format("\nrbenv shim overhead (cold pays it, hot eliminates it): +%<overhead>.1fms  " \
                     "(real cold full ~= %<total>.1fms)",
                     overhead: @rbenv_shim_overhead, total: real_cold_full)
+      end
+
+      def render_legend
+        puts "\nlegend"
+        puts format(LEGEND_ROW, span: "span", interval: "interval (opening mark -> closing mark)",
+                                summary: "summary", description: "what it measures")
+        Span.table.each { render_legend_row(it) }
+      end
+
+      def render_legend_row(span)
+        interval = "#{span.opening_mark} -> #{span.closing_mark}"
+        puts format(LEGEND_ROW, span: span.label, interval:, summary: span.summary,
+                                description: span.description)
       end
     end
   end

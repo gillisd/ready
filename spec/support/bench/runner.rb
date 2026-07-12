@@ -13,22 +13,23 @@ module Ready
     # ArmResult. When rbenv is present, each round also probes the real rbenv
     # shim to derive the shim overhead the hot path eliminates.
     class Runner
-      attr_reader :executable_name, :rbenv_shim_overhead
+      attr_reader :rbenv_shim_overhead
 
       def initialize(executable: "irb", library: "irb", rounds: 15, warmups: 3, rbenv: rbenv_available?)
-        @executable_name = executable
-        @library = library
-        @rounds = rounds
-        @warmups = warmups
+        @protocol = Protocol.new(executable_name: executable, library:, rounds:, warmups:)
         @rbenv = rbenv
         @cold_result = ArmResult.new(name: :cold, warmups:)
         @hot_result = ArmResult.new(name: :hot, warmups:)
         @rbenv_launch_samples = []
       end
 
+      def executable_name
+        @protocol.executable_name
+      end
+
       def call
         build
-        (1..(@rounds + @warmups)).each { round(it) }
+        (1..(@protocol.rounds + @protocol.warmups)).each { round(it) }
         derive_rbenv_shim_overhead
         self
       ensure
@@ -43,12 +44,13 @@ module Ready
         @hot_result.summary
       end
 
-      def report
-        Report.new(cold: @cold_result, hot: @hot_result, rbenv_shim_overhead:)
+      def report(verbose: false)
+        Report.new(cold: @cold_result, hot: @hot_result, protocol: @protocol,
+                   rbenv_shim_overhead:, verbose:)
       end
 
-      def render
-        report.render
+      def render(verbose: false)
+        report(verbose:).render
       end
 
       def teardown
@@ -61,7 +63,7 @@ module Ready
       def build
         @tmp = Pathname(Dir.mktmpdir("bench"))
         @marks_log = MarksLog.new(@tmp / "marks")
-        @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: [@library])
+        @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: [@protocol.library])
         @cold_arm = ColdArm.new(executable_name:, workdir: @tmp / "cold", marks_log: @marks_log)
         @cold_arm.instrument!
         @hot_arm = HotArm.new(executable_name:, rendered_source: render_production_source,
@@ -166,7 +168,7 @@ module Ready
       def derive_rbenv_shim_overhead
         return unless @rbenv
 
-        samples = @rbenv_launch_samples.drop(@warmups)
+        samples = @rbenv_launch_samples.drop(@protocol.warmups)
         direct_launch = cold_summary.duration_of(:launch)
         return if samples.empty? || direct_launch.nil?
 
