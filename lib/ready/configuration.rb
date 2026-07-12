@@ -21,7 +21,7 @@ module Ready
 
     def sock_path
       fetched = fetch_env :sock_path do
-        File.expand_path "ready.sock", prefix
+        prefix / "ready.sock"
       end
 
       Pathname(fetched)
@@ -35,7 +35,7 @@ module Ready
 
     def open_readyfile
       fetched = fetch_env :readyfile do
-        File.expand_path ".readyfile", Dir.home
+        Pathname(Dir.home) / ".readyfile"
       end
 
       Readyfile.open(fetched, build_dir:)

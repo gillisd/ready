@@ -68,7 +68,7 @@ module Ready
                     string = clean.string
                     matches = string.scan(/(require_relative(?:\(| )\s*[\x27"]([^\s\x27"]+)[\x27"]\)?)/)
                     matches.each do |match, relpath|
-                      absolute_path = File.expand_path(relpath, File.dirname(path))
+                      absolute_path = (Pathname(path).dirname / relpath).expand_path.to_s
                       replacement = match.dup
                       replacement.gsub!("require_relative", "require")
                       replacement.gsub!(relpath, absolute_path)
