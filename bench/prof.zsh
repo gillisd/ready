@@ -5,6 +5,14 @@
 # Process::CLOCK_REALTIME reads, so zsh and Ruby marks subtract cleanly.
 zmodload zsh/datetime
 
+# bench_mark <mark_name>
+# Appends one mark for the current run. Called from inside measured regions
+# (the generated hot stub marks stub_entry with it), so it stays a bare
+# one-line append -- no option juggling to keep its own cost negligible.
+bench_mark() {
+  print -r -- "${READY_RUN_ID} $1 ${EPOCHREALTIME}" >> $READY_MARKS
+}
+
 # bench_harness <run_id> -- <cmd...>
 # Runs one command under the harness, bracketing it with the harness_start /
 # harness_end marks. The clock is read bare on both sides and the log writes

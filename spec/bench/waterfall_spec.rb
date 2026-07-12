@@ -20,13 +20,15 @@ RSpec.describe Ready::Bench::Waterfall do
 
     context "with a hot run's marks (no shim, no rubygems)" do
       let(:run) do
-        Ready::Bench::Run.new(id: "hot.1",
-                              mark_times: { harness_start: 1.0, server_entry: 1.053, harness_end: 1.072 })
+        Ready::Bench::Run.new(id: "hot.1", mark_times: {
+                                harness_start: 1.000, stub_entry: 1.001, server_entry: 1.053, harness_end: 1.072
+                              })
       end
 
       it "measures only the spans whose marks exist", :aggregate_failures do
         expect(waterfall.measured?(:launch)).to be false
-        expect(waterfall.duration_of(:dispatch_overhead)).to be_within(1e-6).of(53.0)
+        expect(waterfall.duration_of(:stub_call)).to be_within(1e-6).of(1.0)
+        expect(waterfall.duration_of(:dispatch_overhead)).to be_within(1e-6).of(52.0)
         expect(waterfall.duration_of(:full)).to be_within(1e-6).of(72.0)
       end
     end

@@ -5,10 +5,13 @@ module Ready
     ##
     # Runs the executable through the warm by-server, instrumenting the REAL
     # Ready::Executable render output (a copy -- no gem runtime is edited).
-    # The instrumented source marks:
+    # The zsh stub and the instrumented source mark:
     #
-    #   server_entry - first statement of the eval'd source; everything before
-    #                  it is :dispatch_overhead (client boot, socket, fork)
+    #   stub_entry   - first statement of the zsh stub function; everything
+    #                  before it is :stub_call, the hot path's entire "shell"
+    #                  layer (no fork, no exec -- just a function call)
+    #   server_entry - first statement of the eval'd source; stub_entry to
+    #                  here is :dispatch_overhead (client boot, socket, fork)
     #   pre_tool     - immediately before the tool's entry call, where the
     #                  preloaded requires end and :server_tool_run begins
     class HotArm
@@ -32,12 +35,15 @@ module Ready
 
       # A faithful ready_<name> zsh function (mirrors fn.zsh.erb) whose
       # inlined source carries the marks. +rendered_source+ is the production
-      # render, resolved by NAME exactly as `ready gem <name>` does.
+      # render, resolved by NAME exactly as `ready gem <name>` does. The
+      # stub_entry mark (bench_mark comes from prof.zsh, sourced first) opens
+      # :dispatch_overhead and closes :stub_call.
       def stub_function
         instrumented = self.class.instrument_source(@rendered_source)
         <<~ZSH
           ready_#{@executable_name}() {
             emulate -L zsh
+            bench_mark stub_entry
             autoload -Uz ready_by
             BY_SOCKET=#{@sandbox.sock_path} ready_by -e #{Shellwords.escape(instrumented)} "$@"
           }

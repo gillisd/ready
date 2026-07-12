@@ -12,8 +12,8 @@ module Ready
       TABLE = [
         new(label: :shell, opening_mark: :harness_start, closing_mark: :shim_start,
             summary: :minimum,
-            description: "(cold only) fork/exec and PATH walk to the shim; the hot stub is a " \
-                         "shell function, nothing execs"),
+            description: "(cold only) fork/exec and PATH walk to the shim; stub_call is the " \
+                         "hot equivalent"),
         new(label: :launch, opening_mark: :shim_start, closing_mark: :ruby_up,
             summary: :minimum, description: "(cold only) Ruby interpreter boot, rubygems disabled"),
         new(label: :rubygems, opening_mark: :ruby_up, closing_mark: :rubygems_ready,
@@ -24,10 +24,14 @@ module Ready
             summary: :median, description: "(cold only) loading and executing the tool itself"),
         new(label: :reap, opening_mark: :ruby_exit, closing_mark: :harness_end,
             summary: :median, description: "(cold only) interpreter exit and process reap, back to the shell"),
-        new(label: :dispatch_overhead, opening_mark: :harness_start, closing_mark: :server_entry,
+        new(label: :stub_call, opening_mark: :harness_start, closing_mark: :stub_entry,
             summary: :minimum,
-            description: "(hot only) stub function call, by client boot, socket round-trip, " \
-                         "server fork"),
+            description: "(hot only) zsh dispatching to the ready_<tool> function -- no fork, " \
+                         "no exec, no PATH walk"),
+        new(label: :dispatch_overhead, opening_mark: :stub_entry, closing_mark: :server_entry,
+            summary: :minimum,
+            description: "(hot only) by client boot (a real Ruby process, the floor), socket " \
+                         "round-trip, server fork"),
         new(label: :server_tool_run, opening_mark: :server_entry, closing_mark: :harness_end,
             summary: :median, description: "(hot only) the preloaded tool executing inside the warm server"),
         new(label: :full, opening_mark: :harness_start, closing_mark: :harness_end,
