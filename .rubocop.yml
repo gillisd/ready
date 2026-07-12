@@ -19,7 +19,9 @@ AllCops:
   NewCops: enable
   TargetRubyVersion: 4.0
   Exclude:
-    - bin/*
+    # Stock bundler scripts; bin/bench is ours and stays linted.
+    - bin/console
+    - bin/setup
     - vendor/**/*
     # Vendored read-only reference copy of an external gem; not this project's
     # code (it is also gitignored, so CI never sees it).

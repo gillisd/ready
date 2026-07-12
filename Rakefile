@@ -36,6 +36,7 @@ def bench_runner
   require "ready"
   require "zeitwerk"
   Zeitwerk::Loader.new.tap do |loader|
+    loader.inflector.inflect("cli" => "CLI")
     loader.push_dir(Pathname(__dir__) / "spec/support", namespace: Ready)
     loader.setup
   end
