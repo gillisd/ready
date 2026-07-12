@@ -15,9 +15,10 @@ module Ready
     class Runner
       attr_reader :rbenv_shim_overhead
 
-      def initialize(protocol: Protocol.default, rbenv: Bench.rbenv_available?)
+      def initialize(protocol: Protocol.default, rbenv: Bench.rbenv_available?, progress: nil)
         @protocol = protocol
         @rbenv = rbenv
+        @progress = progress || Progress.new(command: protocol.invocation)
         @cold_result = ArmResult.new(name: :cold, warmups: protocol.warmups)
         @hot_result = ArmResult.new(name: :hot, warmups: protocol.warmups)
         @rbenv_launch_samples = []
@@ -34,8 +35,9 @@ module Ready
       end
 
       def call
+        @progress.building
         build
-        (1..(@protocol.rounds + @protocol.warmups)).each { round(it) }
+        measure_rounds
         derive_rbenv_shim_overhead
         self
       ensure
@@ -65,6 +67,16 @@ module Ready
       end
 
       private
+
+      def measure_rounds
+        total = @protocol.rounds + @protocol.warmups
+        @progress.running(total)
+        (1..total).each do |number|
+          round(number)
+          @progress.tick
+        end
+        @progress.done
+      end
 
       def build
         @tmp = Pathname(Dir.mktmpdir("bench"))

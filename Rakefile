@@ -61,10 +61,7 @@ end
 
 # Appends this run's headline numbers so a caller sequencing several
 # benchmarks (bin/bench --plot) can chart them afterwards.
-def export_bench_results(runner)
-  results_path = ENV.fetch("BENCH_RESULTS", nil)
-  return unless results_path
-
+def export_bench_results(runner, results_path)
   results = Ready::Bench::ResultsLog.new(results_path)
   results.append(command: runner.invocation, arm: :cold,
                  full_milliseconds: runner.cold_summary.duration_of(:full))
@@ -72,10 +69,18 @@ def export_bench_results(runner)
                  full_milliseconds: runner.hot_summary.duration_of(:full))
 end
 
+# Plot mode (BENCH_RESULTS set by bin/bench --plot) exports the headline
+# numbers for the CLI to chart and stays silent on stdout, so the plot is the
+# only output; otherwise the full waterfall report is the output. Either way
+# the run narrates its progress to stderr.
 def run_bench(verbose:)
   runner = bench_runner.call
-  runner.render(verbose:)
-  export_bench_results(runner)
+  results_path = ENV.fetch("BENCH_RESULTS", nil)
+  if results_path
+    export_bench_results(runner, results_path)
+  else
+    runner.render(verbose:)
+  end
 end
 
 desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server + rbenv); bin/bench is the front door"
