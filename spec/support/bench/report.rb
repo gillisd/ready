@@ -53,7 +53,7 @@ module Ready
              "(#{@protocol.preload_gems.join(", ")} preloaded)"
         puts "protocol:          #{@protocol.rounds} measured rounds per arm (+#{@protocol.warmups} warmup, " \
              "excluded), cold/hot order alternating"
-        puts "choose the target: bin/bench [--readyfile PATH] [EXECUTABLE ...]"
+        puts "choose the target: bin/bench [--readyfile PATH] [COMMAND ...] [-- COMMAND ...]"
         puts "all durations in milliseconds"
         puts
       end

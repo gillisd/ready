@@ -8,22 +8,18 @@ module Ready
     ##
     # Development-only ergonomic front door for the benchmark rake tasks. It
     # owns no benchmark logic: flags become the BENCH_* environment the tasks
-    # already read, each executable gets its own proven `rake bench` run, and
+    # already read, each command gets its own proven `rake bench` run, and
     # --plot charts the collected results with youplot afterwards. Only what
     # the user chose is exported, so the rake task's own defaults cover
     # everything else.
     class CLI < CommandKit::Command
       command_name "bench"
 
-      usage "[options] [EXECUTABLE ...]"
+      usage "[options] [COMMAND [ARGUMENT ...]] [-- COMMAND [ARGUMENT ...]]..."
 
       option :readyfile, value: { type: String, usage: "PATH" },
                          desc: "Readyfile whose gems: the warm server preloads; with no " \
-                               "EXECUTABLEs given, every executable it declares is benched"
-
-      option :args, value: { type: String, usage: "STRING" },
-                    desc: "Arguments making the tool do real work, applied to each " \
-                          "executable (default: TCPServer, for the default ri)"
+                               "COMMANDs given, every executable it declares is benched"
 
       option :rounds, value: { type: Integer, usage: "N" },
                       desc: "Measured rounds per arm (default: 15)"
@@ -36,54 +32,68 @@ module Ready
 
       option :plot, desc: "Chart the cold vs hot full times with youplot after the runs"
 
-      argument :executables, required: false,
-                             repeats: true,
-                             usage: "EXECUTABLE",
-                             desc: "Executables under test (default: ri, or the readyfile's)"
+      argument :command, required: false,
+                         repeats: true,
+                         usage: "COMMAND [ARGUMENT ...]",
+                         desc: "Command to benchmark, exactly as you would type it; " \
+                               "separate several with -- (default: ri TCPServer)"
 
       description "Benchmark CLIs cold (fresh boot) vs hot (ready dispatch); needs zsh + by-server + rbenv"
 
       examples [
         "",
-        "--readyfile readyfile ri ronin kamal",
+        "ri TCPServer",
+        "--readyfile readyfile ri TCPServer -- ronin help -- kamal version",
         "--readyfile readyfile --plot",
-        "ri --args TCPServer --rounds 5 --warmups 1 --verbose",
       ]
 
       #
-      # One proven rake run per executable, then the optional chart.
+      # Splits argv into command segments on `--` before options are parsed
+      # (OptionParser would otherwise eat the first separator). Flags belong
+      # in the first segment; later segments are commands, verbatim.
       #
-      def run(*executables)
-        executables_under_test(executables).each do |executable|
-          run_rake(environment_for(executable), task_name)
+      def self.command_segments(argv)
+        argv.each_with_object([[]]) do |word, segments|
+          word == "--" ? segments << [] : segments.last << word
+        end
+      end
+
+      def main(argv = [])
+        first_segment, *rest = self.class.command_segments(argv)
+        @extra_command_segments = rest
+        super(first_segment || [])
+      end
+
+      #
+      # One proven rake run per command, then the optional chart.
+      #
+      def run(*command_words)
+        segments = [command_words, *@extra_command_segments].reject(&:empty?)
+        invocations_under_test(segments).each do |invocation|
+          run_rake(environment_for(invocation), task_name)
         end
         plot_results if options[:plot]
       end
 
       #
-      # The executables to bench: the positional ones, else everything the
-      # readyfile declares, else [nil] -- one run on the rake task's default.
+      # The commands to bench: the typed segments, else everything the
+      # readyfile declares (bare), else [nil] -- one run on the rake task's
+      # default.
       #
-      def executables_under_test(executables)
-        return executables unless executables.empty?
+      def invocations_under_test(segments)
+        return segments.map { Invocation.parse(it) } unless segments.empty?
         return [nil] unless readyfile
 
-        readyfile.executable_names
+        readyfile.executable_names.map { Invocation.bare(it) }
       end
 
       #
       # The BENCH_* environment for one rake run: only the knobs the user
-      # actually turned.
+      # actually turned. A typed command is exported verbatim -- executable
+      # and arguments both -- so what you typed is what runs.
       #
-      def environment_for(executable)
-        {
-          "BENCH_EXE" => executable,
-          "BENCH_ARGS" => options[:args],
-          "BENCH_READYFILE" => options[:readyfile],
-          "BENCH_RUNS" => options[:rounds]&.to_s,
-          "BENCH_WARMUPS" => options[:warmups]&.to_s,
-          "BENCH_RESULTS" => (results_path.to_s if options[:plot]),
-        }.compact
+      def environment_for(invocation)
+        flag_environment.merge(command_environment(invocation)).compact
       end
 
       #
@@ -94,6 +104,24 @@ module Ready
       end
 
       private
+
+      def flag_environment
+        {
+          "BENCH_READYFILE" => options[:readyfile],
+          "BENCH_RUNS" => options[:rounds]&.to_s,
+          "BENCH_WARMUPS" => options[:warmups]&.to_s,
+          "BENCH_RESULTS" => (results_path.to_s if options[:plot]),
+        }
+      end
+
+      def command_environment(invocation)
+        return {} unless invocation
+
+        {
+          "BENCH_EXE" => invocation.executable_name,
+          "BENCH_ARGS" => invocation.arguments.join(" "),
+        }
+      end
 
       # Only gem/executable names are read; Readyfile demands an existing
       # build_dir regardless, so the readyfile's own parent satisfies it.

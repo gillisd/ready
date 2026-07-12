@@ -3,16 +3,29 @@ require "tmpdir"
 RSpec.describe Ready::Bench::CLI do
   subject(:cli) { described_class.new }
 
-  describe "#executables_under_test" do
-    it "benches the positional executables as given" do
-      expect(cli.executables_under_test(%w[ri ronin kamal])).to eq(%w[ri ronin kamal])
+  describe ".command_segments" do
+    it "splits argv into one command per -- separator" do
+      segments = described_class.command_segments(%w[ri TCPServer -- ronin help -- kamal version])
+      expect(segments).to eq([%w[ri TCPServer], %w[ronin help], %w[kamal version]])
+    end
+
+    it "keeps a separator-free argv as a single segment" do
+      expect(described_class.command_segments(%w[ri TCPServer])).to eq([%w[ri TCPServer]])
+    end
+  end
+
+  describe "#invocations_under_test" do
+    it "parses each typed segment into an invocation, verbatim" do
+      ri = Ready::Bench::Invocation.new(executable_name: "ri", arguments: ["TCPServer"])
+      ronin = Ready::Bench::Invocation.new(executable_name: "ronin", arguments: ["help"])
+      expect(cli.invocations_under_test([%w[ri TCPServer], %w[ronin help]])).to eq([ri, ronin])
     end
 
     it "falls back to one run on the rake task's default" do
-      expect(cli.executables_under_test([])).to eq([nil])
+      expect(cli.invocations_under_test([])).to eq([nil])
     end
 
-    context "with a readyfile and no positional executables" do
+    context "with a readyfile and no typed commands" do
       def with_readyfile
         Dir.mktmpdir do |dir|
           readyfile_path = Pathname(dir) / "readyfile"
@@ -21,10 +34,11 @@ RSpec.describe Ready::Bench::CLI do
         end
       end
 
-      it "benches every executable the readyfile declares" do
+      it "benches every executable the readyfile declares, bare" do
+        bare = %w[ri rake].map { Ready::Bench::Invocation.bare(it) }
         with_readyfile do |readyfile_path|
           cli.option_parser.parse(["--readyfile", readyfile_path.to_s])
-          expect(cli.executables_under_test([])).to eq(%w[ri rake])
+          expect(cli.invocations_under_test([])).to eq(bare)
         end
       end
     end
@@ -35,12 +49,16 @@ RSpec.describe Ready::Bench::CLI do
       expect(cli.environment_for(nil)).to eq({})
     end
 
+    it "exports a typed command verbatim -- what you typed is what runs" do
+      invocation = Ready::Bench::Invocation.parse(%w[ronin help])
+      expect(cli.environment_for(invocation))
+        .to eq("BENCH_EXE" => "ronin", "BENCH_ARGS" => "help")
+    end
+
     it "maps the flags onto the BENCH_* contract the rake task reads" do
-      cli.option_parser.parse(["--readyfile", "readyfile", "--args", "help",
-                               "--rounds", "5", "--warmups", "1"])
-      expect(cli.environment_for("ronin"))
-        .to eq("BENCH_EXE" => "ronin", "BENCH_ARGS" => "help", "BENCH_READYFILE" => "readyfile",
-               "BENCH_RUNS" => "5", "BENCH_WARMUPS" => "1")
+      cli.option_parser.parse(["--readyfile", "readyfile", "--rounds", "5", "--warmups", "1"])
+      expect(cli.environment_for(nil))
+        .to eq("BENCH_READYFILE" => "readyfile", "BENCH_RUNS" => "5", "BENCH_WARMUPS" => "1")
     end
 
     it "routes results to a file only when plotting" do
