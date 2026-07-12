@@ -4,9 +4,9 @@ module Ready
     # Median helper over span samples.
     module Stats
       def self.median(values)
-        s = values.sort
-        mid = s.size / 2
-        s.size.odd? ? s[mid] : (s[mid - 1] + s[mid]) / 2.0
+        sorted = values.sort
+        middle = sorted.size / 2
+        sorted.size.odd? ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2.0
       end
     end
   end

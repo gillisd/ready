@@ -7,51 +7,41 @@ require "rbconfig"
 module Ready
   module Bench
     ##
-    # Orchestrates the interleaved cold/hot layer benchmark: builds a warm
-    # sandbox, runs the cold (instrumented rbenv/rubygems copies) and hot (ready
-    # dispatch) arms interleaved, aggregates per-span, and renders the waterfall.
+    # Orchestrates the interleaved cold/hot layer benchmark. Each round runs
+    # both arms (order alternating to cancel drift), every run's marks land in
+    # one MarksLog, and each arm accumulates its runs' waterfalls in an
+    # ArmResult. When rbenv is present, each round also probes the real rbenv
+    # shim to derive the shim overhead the hot path eliminates.
     class Runner
-      PROCESS_SPANS = %w[shell launch dispatch_infra full].freeze
+      attr_reader :executable_name, :rbenv_shim_overhead
 
-      attr_reader :cold, :hot, :rbenv_overhead, :exe
-
-      def initialize(exe: "irb", lib: "irb", runs: 15, warmups: 3, rbenv: nil)
-        @exe = exe
-        @lib = lib
-        @runs = runs
+      def initialize(executable: "irb", library: "irb", rounds: 15, warmups: 3, rbenv: rbenv_available?)
+        @executable_name = executable
+        @library = library
+        @rounds = rounds
         @warmups = warmups
-        @rbenv = rbenv || system("command -v rbenv >/dev/null 2>&1")
-        @cold_runs = []
-        @hot_runs = []
-        @rbenv_launch = []
+        @rbenv = rbenv
+        @cold_result = ArmResult.new(name: :cold, warmups:)
+        @hot_result = ArmResult.new(name: :hot, warmups:)
+        @rbenv_launch_samples = []
       end
 
       def call
         build
-        (1..(@runs + @warmups)).each { |i| round(i) }
-        agg = Aggregator.new(span_kind: PROCESS_SPANS.to_h { |s| [s, :min] })
-        @cold = agg.combine(@cold_runs.drop(@warmups))
-        @hot = agg.combine(@hot_runs.drop(@warmups))
-        derive_rbenv_overhead
+        (1..(@rounds + @warmups)).each { round(it) }
+        derive_rbenv_shim_overhead
         self
       ensure
         teardown
       end
 
-      def report
-        Report.new(
-          { "cold" => [@cold], "hot" => [@hot] },
-          { "cold" => walls(@cold_runs), "hot" => walls(@hot_runs) },
-        )
-      end
+      def cold_summary = @cold_result.summary
 
-      def render
-        report.render
-        return unless @rbenv_overhead
+      def hot_summary = @hot_result.summary
 
-        puts format("\nrbenv shim overhead (cold, eliminated hot): +%<o>.1fms  " \
-                    "(real cold full ~= %<t>.1fms)", o: @rbenv_overhead, t: @cold["full"] + @rbenv_overhead)
-      end
+      def report = Report.new(cold: @cold_result, hot: @hot_result, rbenv_shim_overhead:)
+
+      def render = report.render
 
       def teardown
         @sandbox&.teardown
@@ -60,93 +50,122 @@ module Ready
 
       private
 
-      def walls(runs)
-        runs.drop(@warmups).filter_map { |s| s["full"]&./(1000.0) }
-      end
-
-      def derive_rbenv_overhead
-        return unless @rbenv
-
-        floor = @rbenv_launch.drop(@warmups).min
-        @rbenv_overhead = floor && @cold["launch"] ? floor - @cold["launch"] : nil
-      end
-
       def build
         @tmp = Pathname(Dir.mktmpdir("bench"))
-        @marks = @tmp / "marks"
-        @marks.write("")
-        @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: [@lib])
-        @cold_arm = ColdArm.new(exe: @exe, workdir: @tmp / "cold", marks_path: @marks)
+        @marks_log = MarksLog.new(@tmp / "marks")
+        @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: [@library])
+        @cold_arm = ColdArm.new(executable_name:, workdir: @tmp / "cold", marks_log: @marks_log)
         @cold_arm.instrument!
-        @hot_arm = HotArm.new(exe: @exe, rendered: render_hot_source, sandbox: @sandbox, marks_path: @marks)
+        @hot_arm = HotArm.new(executable_name:, rendered_source: render_production_source,
+                              sandbox: @sandbox, marks_log: @marks_log)
         (@tmp / "stub.zsh").write(@hot_arm.stub_function)
       end
 
-      # Render the hot stub source the way production `ready gem <exe>` does: by
-      # NAME, so Executable resolves via Gem.bin_path and reads the real file
-      # whether the binstub lives in bin/ or exe/. Runs in a scrubbed, unbundled
-      # subprocess because the bench itself runs under this project's bundle,
-      # where the target (e.g. ronin) is not a bundled gem.
-      def render_hot_source
-        script = "require \"ready\"; print Ready::Executable.new(#{@exe.inspect}).render"
-        out = Bundler.with_unbundled_env do
+      # Renders the hot stub source the way production `ready gem <name>`
+      # does: by NAME, so Executable resolves via Gem.bin_path and reads the
+      # real file whether the binstub lives in bin/ or exe/. Runs in a
+      # scrubbed, unbundled subprocess because the bench itself runs under
+      # this project's bundle, where the target (e.g. ronin) is not a bundled
+      # gem.
+      def render_production_source
+        script = "require \"ready\"; print Ready::Executable.new(#{executable_name.inspect}).render"
+        output = Bundler.with_unbundled_env do
           IO.popen({ "GEM_HOME" => nil, "GEM_PATH" => nil },
                    [RbConfig.ruby, "-I", (Ready.root / "lib").to_s, "-e", script], &:read)
         end
-        raise "cannot render #{@exe}: #{out}" unless $CHILD_STATUS.success? && !out.empty?
+        raise "cannot render #{executable_name}: #{output}" unless $CHILD_STATUS.success? && !output.empty?
 
-        out
+        output
       end
 
-      def round(iteration)
-        order = iteration.even? ? %i[cold hot] : %i[hot cold]
-        order.each { |arm| send(:"run_#{arm}", "#{arm}.#{iteration}") }
-        run_rbenv("rbenv.#{iteration}") if @rbenv
+      # Cold-first on even rounds, hot-first on odd, so run-order drift
+      # cancels out across the session.
+      def round(number)
+        if number.even?
+          run_cold("cold.#{number}")
+          run_hot("hot.#{number}")
+        else
+          run_hot("hot.#{number}")
+          run_cold("cold.#{number}")
+        end
+        probe_rbenv_shim("rbenv.#{number}") if @rbenv
       end
 
-      def run_cold(run_id) = cold_dispatch(run_id, direct: true) { |s| @cold_runs << s }
-      def run_rbenv(run_id) = cold_dispatch(run_id, direct: false) { |s| @rbenv_launch << s["launch"] if s["launch"] }
+      def run_cold(run_id)
+        waterfall, wall_seconds = cold_invocation(run_id, shim: @cold_arm.direct_shim)
+        @cold_result.record(waterfall:, wall_seconds:)
+      end
 
-      def cold_dispatch(run_id, direct:)
+      # The rbenv variant exists only to isolate the real shim's cost: its
+      # :launch also carries the `rbenv exec` chain, so min(rbenv launch)
+      # minus the direct arm's launch floor is the shim overhead.
+      def probe_rbenv_shim(run_id)
+        waterfall, = cold_invocation(run_id, shim: @cold_arm.rbenv_shim)
+        launch = waterfall.duration_of(:launch)
+        @rbenv_launch_samples << launch if launch
+      end
+
+      def cold_invocation(run_id, shim:)
         Bundler.with_unbundled_env do
           drop_stale_gem_home
-          shell = Ready::PtyShell.new(@cold_arm.env(run_id:))
-          shell.run("source #{Ready.root / "bench" / "prof.zsh"}")
-          shell.run("bench_envelope #{run_id} -- #{@cold_arm.command(direct:)} --version >/dev/null 2>&1")
-          yield spans_for(run_id)
+          shell = Ready::PtyShell.new(@cold_arm.environment_for(run_id:))
+          shell.run("source #{profiler_path}")
+          _output, wall_seconds = shell.run(harness_command(run_id, shim.command_word))
+          [waterfall_for(run_id), wall_seconds]
         ensure
           shell&.close
         end
       end
 
-      # Dispatch from a bundler-free shell (a real user terminal is unbundled) so
-      # the by client isn't slowed by an inherited RUBYOPT=-rbundler/setup.
+      # Dispatches from a bundler-free shell (a real user terminal is
+      # unbundled) so the by client isn't slowed by a bundler/setup require
+      # inherited through RUBYOPT.
       def run_hot(run_id)
         Bundler.with_unbundled_env do
           drop_stale_gem_home
           shell = Ready::PtyShell.new(@sandbox.shell_env)
           shell.run(hot_setup(run_id))
-          shell.run("bench_envelope #{run_id} -- ready_#{@exe} --version >/dev/null 2>&1")
-          @hot_runs << spans_for(run_id)
+          _output, wall_seconds = shell.run(harness_command(run_id, "ready_#{executable_name}"))
+          waterfall = waterfall_for(run_id)
+          @hot_result.record(waterfall:, wall_seconds:)
         ensure
           shell&.close
         end
       end
 
+      def harness_command(run_id, command_word)
+        "bench_harness #{run_id} -- #{command_word} --version >/dev/null 2>&1"
+      end
+
       def hot_setup(run_id)
         ["source #{@sandbox.plugin_path}",
-         "source #{Ready.root / "bench" / "prof.zsh"}",
+         "source #{profiler_path}",
          @hot_arm.shell_setup(run_id:),
          "source #{@tmp / "stub.zsh"}"].join("; ")
       end
 
-      def spans_for(run_id)
-        Marks.spans(Marks.parse(@marks.to_s)[run_id] || {})
+      def profiler_path = Ready.root / "bench" / "prof.zsh"
+
+      def waterfall_for(run_id)
+        run = @marks_log.run(run_id)
+        Waterfall.of(run)
+      end
+
+      def derive_rbenv_shim_overhead
+        return unless @rbenv
+
+        samples = @rbenv_launch_samples.drop(@warmups)
+        direct_launch = cold_summary.duration_of(:launch)
+        return if samples.empty? || direct_launch.nil?
+
+        @rbenv_shim_overhead = samples.min - direct_launch
       end
 
       def drop_stale_gem_home
-        %w[GEM_HOME GEM_PATH].each { |v| ENV.delete(v) if ENV[v] && !File.directory?(ENV[v]) }
+        %w[GEM_HOME GEM_PATH].each { ENV.delete(it) if ENV[it] && !File.directory?(ENV[it]) }
       end
+
+      def rbenv_available? = system("command -v rbenv >/dev/null 2>&1")
     end
   end
 end

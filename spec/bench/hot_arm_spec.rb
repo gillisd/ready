@@ -1,14 +1,21 @@
 RSpec.describe Ready::Bench::HotArm do
-  it "prepends a server_entry mark and injects pre_tool before the tool start" do
-    rendered = <<~RUBY
-      Process.setproctitle "irb"
-      require 'irb'
-      IRB.start(__FILE__)
-    RUBY
-    out = described_class.instrument_source(rendered)
-    aggregate_failures do
-      expect(out.index("server_entry")).to be < out.index("setproctitle")
-      expect(out).to match(/pre_tool.*\n\s*IRB\.start/m)
+  describe ".instrument_source" do
+    subject(:instrumented) { described_class.instrument_source(rendered_source) }
+
+    let(:rendered_source) do
+      <<~RUBY
+        Process.setproctitle "irb"
+        require 'irb'
+        IRB.start(__FILE__)
+      RUBY
+    end
+
+    it "marks server entry before any of the rendered source runs" do
+      expect(instrumented.index("server_entry")).to be < instrumented.index("setproctitle")
+    end
+
+    it "marks pre_tool immediately before the tool's entry call" do
+      expect(instrumented).to include(%(ready_bench_mark("pre_tool")\nIRB.start))
     end
   end
 end

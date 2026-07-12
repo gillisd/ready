@@ -2,11 +2,11 @@ require "ready"
 require "zeitwerk"
 
 # Autoload the e2e/benchmark harness the Zeitwerk way, into the Ready namespace
-# (spec/support/pty_shell.rb -> Ready::PtyShell, support/bench/marks.rb ->
-# Ready::Bench::Marks, ...). A second loader may share a namespace owned by the
+# (spec/support/pty_shell.rb -> Ready::PtyShell, support/bench/span.rb ->
+# Ready::Bench::Span, ...). A second loader may share a namespace owned by the
 # gem's for_gem loader.
 Zeitwerk::Loader.new.tap do |loader|
-  loader.push_dir(File.expand_path("support", __dir__), namespace: Ready)
+  loader.push_dir(Pathname(__dir__) / "support", namespace: Ready)
   loader.setup
 end
 

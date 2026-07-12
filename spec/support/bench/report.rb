@@ -1,53 +1,61 @@
 module Ready
   module Bench
     ##
-    # Renders the per-arm waterfall and the paired hot-cold deltas.
+    # Renders the cold-vs-hot waterfall: one row per span (median/min across
+    # each arm's measured runs), the full-span delta, and a cross-check of the
+    # in-shell numbers against the pty driver's independently observed wall
+    # clock.
     class Report
-      HEADER = "%<span>-14s %<cold>28s %<hot>28s".freeze
+      ROW = "%<span>-18s %<cold>28s %<hot>28s".freeze
 
-      def initialize(runs_by_arm, pty_walls)
-        @runs = runs_by_arm
-        @pty = pty_walls
+      def initialize(cold:, hot:, rbenv_shim_overhead: nil)
+        @cold = cold
+        @hot = hot
+        @arms = [cold, hot]
+        @rbenv_shim_overhead = rbenv_shim_overhead
       end
 
       def render
-        puts format(HEADER, span: "", cold: "cold (median/min ms)", hot: "hot (median/min ms)")
-        Marks::SPANS.map(&:first).each { |label| render_span(label) }
-        render_pairs
-        render_pty_check
+        puts format(ROW, span: "", cold: "cold (median/min ms)", hot: "hot (median/min ms)")
+        Span.table.each { render_row(it) }
+        render_full_delta
+        @arms.each { render_wall_clock_check(it) }
+        render_rbenv_shim_overhead
       end
 
       private
 
-      def samples(arm, label)
-        @runs[arm].filter_map { |spans| spans[label] }
+      def render_row(span)
+        cold_cell, hot_cell = @arms.map { cell(it.samples_of(span.label)) }
+        puts format(ROW, span: span.label, cold: cold_cell, hot: hot_cell)
       end
 
-      def render_span(label)
-        puts format(HEADER, span: label, cold: cell(samples("cold", label)), hot: cell(samples("hot", label)))
+      def cell(samples)
+        return "-" if samples.empty?
+
+        format("%<median>9.1f / %<minimum>8.1f", median: Stats.median(samples), minimum: samples.min)
       end
 
-      def cell(vals)
-        return "-" if vals.empty?
-
-        format("%<med>9.1f / %<min>8.1f", med: Stats.median(vals), min: vals.min)
+      def render_full_delta
+        delta = @hot.duration_of(:full) - @cold.duration_of(:full)
+        puts format("\nfull delta (hot - cold): %<delta>+.1fms", delta:)
       end
 
-      def render_pairs
-        deltas = @runs["hot"].zip(@runs["cold"]).map { |h, c| h["full"] - c["full"] }
-        puts format("\npaired full-envelope delta (hot - cold): median %<med>+.1fms  min %<min>+.1fms  " \
-                    "max %<max>+.1fms  n=%<n>d",
-                    med: Stats.median(deltas), min: deltas.min, max: deltas.max, n: deltas.size)
+      def render_wall_clock_check(arm)
+        in_shell = arm.duration_of(:full)
+        observed = arm.median_wall_clock_milliseconds
+        puts format("pty cross-check %<arm>-5s in-shell %<in_shell>7.1fms  " \
+                    "pty-observed %<observed>7.1fms  (delta %<delta>.1fms driver overhead)",
+                    arm: arm.name, in_shell:, observed:, delta: observed - in_shell)
       end
 
-      def render_pty_check
-        %w[cold hot].each do |arm|
-          inshell = Stats.median(@runs[arm].map { |s| s["full"] })
-          outside = Stats.median(@pty[arm]) * 1000.0
-          puts format("pty cross-check %<arm>-5s in-shell %<ins>7.1fms  pty-observed %<out>7.1fms  " \
-                      "(delta %<d>.1fms driver overhead)",
-                      arm: arm, ins: inshell, out: outside, d: outside - inshell)
-        end
+      def render_rbenv_shim_overhead
+        return unless @rbenv_shim_overhead
+
+        real_cold_full = @cold.duration_of(:full) + @rbenv_shim_overhead
+        puts format("\nrbenv shim overhead (cold pays it, hot eliminates it): +%<overhead>.1fms  " \
+                    "(real cold full ~= %<total>.1fms)",
+                    overhead: @rbenv_shim_overhead, total: real_cold_full)
       end
     end
   end

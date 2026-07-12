@@ -1,109 +1,66 @@
-require "fileutils"
-require "rbconfig"
-
 module Ready
   module Bench
     ##
-    # Generates faithful, mark-instrumented COPIES of the real rbenv shim and
-    # rubygems stub for a gem executable, so a cold invocation can be attributed
-    # per layer without touching any real file. Two shim variants: `rbenv` runs
-    # the real `rbenv exec` chain (its launch span carries the rbenv cost),
-    # `direct` execs the instrumented stub copy under the version ruby (no rbenv)
-    # and carries the stub sub-spans.
+    # Prepares the cold arm: faithful, mark-instrumented COPIES of the files a
+    # cold invocation runs through, so every layer can be attributed without
+    # touching any real file. instrument! writes four artifacts into the
+    # workdir:
     #
-    # Both shims boot ruby with --disable-gems. With the default `gems` feature
-    # on, MRI performs an eager, implicit `require "rubygems"` during interpreter
-    # startup (effectively an injected `-r rubygems`) that runs BEFORE any
-    # RUBYOPT `-r` option, so ~45ms is already paid by the time ruby_up (the
-    # prelude) fires, hiding it inside `launch` and leaving the stub's own
-    # `require "rubygems"` a $LOADED_FEATURES no-op (~0.2ms). --disable-gems
-    # skips that implicit require, so ruby_up fires first and the SAME
-    # `require "rubygems"` runs at the stub's explicit call site instead, landing
-    # in the `rubygems` span. Same code, same cost, moved call site (this is the
-    # interpreter's default gem require, not Kernel#autoload) so the layer is
-    # markable, matching the talk's rubygems-stub layer.
+    #   prelude.rb   - marks ruby_up; armed via RUBYOPT -r, so it is the first
+    #                  Ruby user code to run
+    #   stub         - the real rubygems stub for the executable, copied and
+    #                  instrumented at its standard boundaries (RubygemsStub)
+    #   two shims    - RbenvShim (the real `rbenv exec` chain) and DirectShim
+    #                  (execs the stub copy under this Ruby); see each class
     class ColdArm
-      # Mark helper + at_exit, inserted verbatim (single-quoted heredoc keeps the
-      # interpolations literal, so they run inside the instrumented stub).
-      HELPER = <<~'RUBY'.freeze
-        def __bmark(n)
-          File.write(ENV.fetch("READY_MARKS"), "#{ENV.fetch('READY_RUN_ID')} #{n} #{Process.clock_gettime(Process::CLOCK_REALTIME)}\n", mode: "a")
-        end
-        at_exit { __bmark("ruby_exit") }
-      RUBY
-
-      # The two stub forms that activate + load the tool, each capturing (indent,
-      # gem-exe-version args) so we can split activation from the require.
-      ACTIVATION_LINES = [
-        /^(\s*)Gem\.activate_and_load_bin_path\((.*)\)/,
-        /^(\s*)load Gem\.activate_bin_path\((.*)\)/,
-      ].freeze
-
-      # Rewrites a standard rubygems stub so it emits rubygems_ready /
-      # dep_activated / bin_path_resolved, splitting Gem activation from the
-      # tool require so each is its own span.
-      def self.instrument_stub(src)
-        out = src.sub(/\A(#!.*\n)?/) { "#{Regexp.last_match(1)}#{HELPER}" }
-        out = out.sub(/(Gem\.use_gemdeps.*\n)/) { "#{Regexp.last_match(1)}__bmark('rubygems_ready')\n" }
-        ACTIVATION_LINES.each do |re|
-          out = out.gsub(re) { split_activation(Regexp.last_match(1), Regexp.last_match(2)) }
-        end
-        out
-      end
-
-      def self.split_activation(indent, args)
-        "#{indent}__bmark('dep_activated'); " \
-          "__bp = Gem.activate_bin_path(#{args}); " \
-          "__bmark('bin_path_resolved'); load __bp"
-      end
-
-      def initialize(exe:, workdir:, marks_path:)
-        @exe = exe
+      def initialize(executable_name:, workdir:, marks_log:)
+        @executable_name = executable_name
         @workdir = Pathname(workdir)
-        @marks_path = Pathname(marks_path)
+        @marks_log = marks_log
       end
 
-      def real_shim = Pathname(File.expand_path("~/.rbenv/shims/#{@exe}"))
-      def real_stub = Pathname(`rbenv which #{@exe}`.strip)
+      def rbenv_shim
+        @rbenv_shim ||= RbenvShim.new(executable_name:, workdir:, prelude_path:)
+      end
+
+      def direct_shim
+        @direct_shim ||= DirectShim.new(executable_name:, workdir:, prelude_path:,
+                                        stub_path: instrumented_stub_path)
+      end
 
       def instrument!
-        FileUtils.mkdir_p(@workdir)
-        (@workdir / "stub").write(self.class.instrument_stub(real_stub.read))
-        write_shim(@workdir / @exe, rbenv: true)
-        write_shim(@workdir / "#{@exe}_direct", rbenv: false)
+        workdir.mkpath
+        write_prelude
+        write_instrumented_stub
+        [rbenv_shim, direct_shim].each(&:write!)
       end
 
-      # Command word for a run: `<exe>` (rbenv arm) or `<exe>_direct`.
-      def command(direct:) = direct ? "#{@exe}_direct" : @exe
-
-      # Env a shell must export before running the arm.
-      def env(run_id:)
+      # Environment a shell exports so marks land in the log and the shim
+      # copies shadow the real commands on PATH.
+      def environment_for(run_id:)
         {
-          "READY_MARKS" => @marks_path.to_s,
+          "READY_MARKS" => @marks_log.path.to_s,
           "READY_RUN_ID" => run_id,
-          "PATH" => "#{@workdir}:#{ENV.fetch("PATH", nil)}",
+          "PATH" => "#{workdir}:#{ENV.fetch("PATH", nil)}",
         }
       end
 
       private
 
-      def write_shim(path, rbenv:)
-        prelude = Ready.root / "bench" / "prelude.rb"
-        target = if rbenv
-                   %(exec rbenv exec "#{@exe}" "$@")
-                 else
-                   %(exec "#{RbConfig.ruby}" "#{@workdir / "stub"}" "$@")
-                 end
-        path.write(<<~SH)
-          #!/usr/bin/env bash
-          set -e
-          printf '%s shim_start %s\\n' "$READY_RUN_ID" "$EPOCHREALTIME" >> "$READY_MARKS"
-          export RUBYOPT="--disable-gems -r#{prelude}${RUBYOPT:+ $RUBYOPT}"
-          export RBENV_ROOT="$HOME/.rbenv"
-          #{target}
-        SH
-        path.chmod(0o755)
+      attr_reader :executable_name, :workdir
+
+      def write_prelude
+        prelude_path.write("#{MarkHelper.definition}#{MarkHelper.record(:ruby_up)}\n")
       end
+
+      def write_instrumented_stub
+        stub = RubygemsStub.for_executable(executable_name)
+        instrumented_stub_path.write(stub.instrumented_source)
+      end
+
+      def prelude_path = workdir / "prelude.rb"
+
+      def instrumented_stub_path = workdir / "stub"
     end
   end
 end
