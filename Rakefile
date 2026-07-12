@@ -1,3 +1,13 @@
+# Everything below develops the ready gem itself (gem build/release, specs,
+# rubocop, benchmarks) and depends on dev-only gems. None of it is needed to RUN
+# ready: the runtime `ready`/`compile`/`clobber`/`ready:*` tasks live in
+# rakelib/ready.rake, which rake auto-loads independently of this file. When
+# ready runs as an installed gem the gemspec and dev gems are absent, so loading
+# this file would crash `ready up|compile|clobber` (e.g. bundler/gem_tasks
+# raising "Unable to determine name from existing gemspec"). Load the dev tasks
+# only in a source checkout, detected by the gemspec's presence.
+return unless File.exist?(File.expand_path("ready.gemspec", __dir__))
+
 require "bundler/gem_tasks"
 
 require "rspec/core/rake_task"
