@@ -20,6 +20,11 @@ if ! [[ -f $compiledpath ]]; then
   return 1
 fi
 
+# Point the `by` client at the ready server's socket. Gem stubs set BY_SOCKET
+# inline per call, but the bare `by`/`ready_by` command relies on the env; the
+# by client otherwise defaults to ~/.by_socket and can't reach the server.
+typeset -gx BY_SOCKET=$READY_SOCK_PATH
+
 local -a noncompletions=(${${${${${(f@)"$(builtin zcompile -t $compiledpath)"}[2,-1]}:t}:#_*}:#ready})
 fpath+=($compiledpath)
 
