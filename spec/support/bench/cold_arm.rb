@@ -11,12 +11,17 @@ module Ready
     # `direct` execs the instrumented stub copy under the version ruby (no rbenv)
     # and carries the stub sub-spans.
     #
-    # Both shims boot ruby with --disable-gems so RubyGems is NOT autoloaded
-    # during interpreter startup. Otherwise the ~45ms `require "rubygems"` is
-    # paid before ruby_up (the RUBYOPT prelude) fires, hiding it inside `launch`
-    # and leaving the stub's re-require a no-op (~0.2ms). With gems disabled,
-    # ruby_up fires first and the stub's real `require "rubygems"` lands in the
-    # `rubygems` span, matching the talk's rubygems-stub layer.
+    # Both shims boot ruby with --disable-gems. With the default `gems` feature
+    # on, MRI performs an eager, implicit `require "rubygems"` during interpreter
+    # startup (effectively an injected `-r rubygems`) that runs BEFORE any
+    # RUBYOPT `-r` option, so ~45ms is already paid by the time ruby_up (the
+    # prelude) fires, hiding it inside `launch` and leaving the stub's own
+    # `require "rubygems"` a $LOADED_FEATURES no-op (~0.2ms). --disable-gems
+    # skips that implicit require, so ruby_up fires first and the SAME
+    # `require "rubygems"` runs at the stub's explicit call site instead, landing
+    # in the `rubygems` span. Same code, same cost, moved call site (this is the
+    # interpreter's default gem require, not Kernel#autoload) so the layer is
+    # markable, matching the talk's rubygems-stub layer.
     class ColdArm
       # Mark helper + at_exit, inserted verbatim (single-quoted heredoc keeps the
       # interpolations literal, so they run inside the instrumented stub).
