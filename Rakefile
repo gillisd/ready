@@ -12,6 +12,19 @@ namespace :spec do
   end
 end
 
+desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server; rbenv optional). BENCH_EXE/BENCH_LIB override the target."
+task :bench do
+  require "ready"
+  require "zeitwerk"
+  Zeitwerk::Loader.new.tap { |l| l.push_dir(File.expand_path("spec/support", __dir__), namespace: Ready); l.setup }
+  Ready::Bench::Runner.new(
+    exe: ENV.fetch("BENCH_EXE", "irb"),
+    lib: ENV.fetch("BENCH_LIB", "irb"),
+    runs: Integer(ENV.fetch("BENCH_RUNS", "15")),
+    warmups: Integer(ENV.fetch("BENCH_WARMUPS", "3")),
+  ).call.render
+end
+
 require "rubocop/rake_task"
 RuboCop::RakeTask.new
 

@@ -14,12 +14,13 @@ module Ready
     PLUGIN_PATH = Ready.root / "zsh" / "ready" / "ready.plugin.zsh"
     EXE_READY = Ready.root / "exe" / "ready"
 
-    def self.build(executables:)
-      new(executables:).tap(&:up)
+    def self.build(executables:, gems: [])
+      new(executables:, gems:).tap(&:up)
     end
 
-    def initialize(executables:)
+    def initialize(executables:, gems: [])
       @executables = executables
+      @gems = gems
       @prefix = Pathname(Dir.mktmpdir("ready-e2e"))
       @readyfile = @prefix / ".readyfile"
       @sock_path = @prefix / "ready.sock"
@@ -53,7 +54,9 @@ module Ready
     private
 
     def write_readyfile
-      lines = ["executables:", *@executables.map { |e| "  - #{e}" }]
+      lines = []
+      lines += ["gems:", *@gems.map { |g| "  - #{g}" }] unless @gems.empty?
+      lines += ["executables:", *@executables.map { |e| "  - #{e}" }]
       readyfile.write("#{lines.join("\n")}\n")
     end
 
