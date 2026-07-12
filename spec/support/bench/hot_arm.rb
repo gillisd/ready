@@ -3,52 +3,51 @@ require "shellwords"
 module Ready
   module Bench
     ##
-    # Runs a gem executable through the warm by-server and marks the dispatch
-    # infra vs the (preloaded) tool_run. Uses the REAL Ready::Executable render
-    # output with marks injected into a copy, so no gem-runtime edit is needed.
+    # Runs the executable through the warm by-server, instrumenting the REAL
+    # Ready::Executable render output (a copy -- no gem runtime is edited).
+    # The instrumented source marks:
+    #
+    #   server_entry - first statement of the eval'd source; everything before
+    #                  it is :dispatch_overhead (client boot, socket, fork)
+    #   pre_tool     - immediately before the tool's entry call, where the
+    #                  preloaded requires end and :server_tool_run begins
     class HotArm
-      TOOL_START = /^(\s*)([A-Z][\w:]*\.(?:start|run)\b|main\b)/
+      TOOL_ENTRY_CALL = /^(\s*)([A-Z][\w:]*\.(?:start|run)\b|main\b)/
 
-      # A mark statement for the eval'd source: the name is interpolated now, the
-      # run-id and clock read stay literal so they run inside the by-server worker
-      # (which inherits the client's READY_MARKS/READY_RUN_ID env).
-      def self.mark(name)
-        rid = %(\#{ENV.fetch('READY_RUN_ID')})
-        clock = %(\#{Process.clock_gettime(Process::CLOCK_REALTIME)})
-        %(File.open(ENV.fetch("READY_MARKS"), "a") { |f| f.puts "#{rid} #{name} #{clock}" })
-      end
-
-      def self.instrument_source(rendered)
-        out = "#{mark("server_entry")}\n#{rendered}"
-        out.sub(TOOL_START) do
-          "#{Regexp.last_match(1)}#{mark("pre_tool")}\n#{Regexp.last_match(1)}#{Regexp.last_match(2)}"
+      def self.instrument_source(rendered_source)
+        prologue = "#{MarkHelper.definition}#{MarkHelper.record(:server_entry)}\n"
+        "#{prologue}#{rendered_source}".sub(TOOL_ENTRY_CALL) do
+          indent = Regexp.last_match(1)
+          entry_call = Regexp.last_match(2)
+          "#{indent}#{MarkHelper.record(:pre_tool)}\n#{indent}#{entry_call}"
         end
       end
 
-      def initialize(exe:, rendered:, sandbox:, marks_path:)
-        @exe = exe
-        @rendered = rendered
+      def initialize(executable_name:, rendered_source:, sandbox:, marks_log:)
+        @executable_name = executable_name
+        @rendered_source = rendered_source
         @sandbox = sandbox
-        @marks_path = Pathname(marks_path)
+        @marks_log = marks_log
       end
 
-      # A faithful ready_<exe> zsh function (mirrors fn.zsh.erb) whose inlined
-      # source carries the marks. +rendered+ is the real Ready::Executable render
-      # output (resolved by name, exactly as production `ready gem <exe>` does).
+      # A faithful ready_<name> zsh function (mirrors fn.zsh.erb) whose
+      # inlined source carries the marks. +rendered_source+ is the production
+      # render, resolved by NAME exactly as `ready gem <name>` does.
       def stub_function
-        source = self.class.instrument_source(@rendered)
+        instrumented = self.class.instrument_source(@rendered_source)
         <<~ZSH
-          ready_#{@exe}() {
+          ready_#{@executable_name}() {
             emulate -L zsh
             autoload -Uz ready_by
-            BY_SOCKET=#{@sandbox.sock_path} ready_by -e #{Shellwords.escape(source)} "$@"
+            BY_SOCKET=#{@sandbox.sock_path} ready_by -e #{Shellwords.escape(instrumented)} "$@"
           }
         ZSH
       end
 
-      # Exported in the pty shell so the worker's marks land in our file.
+      # Exported in the pty shell so the server worker's marks land in our log
+      # (the worker inherits the client's environment).
       def shell_setup(run_id:)
-        "export READY_MARKS=#{@marks_path} READY_RUN_ID=#{run_id}"
+        "export READY_MARKS=#{@marks_log.path} READY_RUN_ID=#{run_id}"
       end
     end
   end

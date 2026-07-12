@@ -21,6 +21,9 @@ AllCops:
   Exclude:
     - bin/*
     - vendor/**/*
+    # Vendored read-only reference copy of an external gem; not this project's
+    # code (it is also gitignored, so CI never sees it).
+    - references/**/*
     - lib/core_ext/**/*
     - rakelib/project.rb
     - rakelib/project_version.rb
@@ -127,6 +130,12 @@ Claude/MysteryRegex:
 # Zeitwerk loaders are mutable by design — only flag literal mutable values.
 Style/MutableConstant:
   EnforcedStyle: literals
+
+# Data.define subclassing keeps the class body a real class body, so constants
+# holding instances of the class (e.g. Span::TABLE) live where they belong;
+# the block form would bind them lexically to the enclosing namespace.
+Style/DataInheritance:
+  Enabled: false
 
 # Shared test contexts legitimately define many helpers.
 RSpec/MultipleMemoizedHelpers:

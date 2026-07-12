@@ -6,7 +6,7 @@
 # this file would crash `ready up|compile|clobber` (e.g. bundler/gem_tasks
 # raising "Unable to determine name from existing gemspec"). Load the dev tasks
 # only in a source checkout, detected by the gemspec's presence.
-return unless File.exist?(File.expand_path("ready.gemspec", __dir__))
+return unless (Pathname(__dir__) / "ready.gemspec").exist?
 
 require "bundler/gem_tasks"
 
@@ -22,15 +22,19 @@ namespace :spec do
   end
 end
 
-desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server; rbenv optional). BENCH_EXE/BENCH_LIB override the target."
+desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server; rbenv optional). " \
+     "BENCH_EXE/BENCH_LIB override the target."
 task :bench do
   require "ready"
   require "zeitwerk"
-  Zeitwerk::Loader.new.tap { |l| l.push_dir(File.expand_path("spec/support", __dir__), namespace: Ready); l.setup }
+  Zeitwerk::Loader.new.tap do |loader|
+    loader.push_dir(Pathname(__dir__) / "spec/support", namespace: Ready)
+    loader.setup
+  end
   Ready::Bench::Runner.new(
-    exe: ENV.fetch("BENCH_EXE", "irb"),
-    lib: ENV.fetch("BENCH_LIB", "irb"),
-    runs: Integer(ENV.fetch("BENCH_RUNS", "15")),
+    executable: ENV.fetch("BENCH_EXE", "irb"),
+    library: ENV.fetch("BENCH_LIB", "irb"),
+    rounds: Integer(ENV.fetch("BENCH_RUNS", "15")),
     warmups: Integer(ENV.fetch("BENCH_WARMUPS", "3")),
   ).call.render
 end

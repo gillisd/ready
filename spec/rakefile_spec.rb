@@ -11,7 +11,7 @@ RSpec.describe "Rakefile runtime safety" do
   def rake_output(dir)
     IO.popen(
       { "BUNDLE_GEMFILE" => nil, "RUBYOPT" => nil },
-      [RbConfig.ruby, Gem.bin_path("rake", "rake"), "-f", File.join(dir, "Rakefile"), "--tasks"],
+      [RbConfig.ruby, Gem.bin_path("rake", "rake"), "-f", (Pathname(dir) / "Rakefile").to_s, "--tasks"],
       chdir: dir, err: %i[child out], &:read
     )
   end
