@@ -11,21 +11,25 @@ module Ready
     class Span < Data.define(:label, :opening_mark, :closing_mark, :summary, :description)
       TABLE = [
         new(label: :shell, opening_mark: :harness_start, closing_mark: :shim_start,
-            summary: :minimum, description: "shell fork/exec and PATH resolution, up to shim entry"),
+            summary: :minimum,
+            description: "(cold only) fork/exec and PATH walk to the shim; the hot stub is a " \
+                         "shell function, nothing execs"),
         new(label: :launch, opening_mark: :shim_start, closing_mark: :ruby_up,
-            summary: :minimum, description: "Ruby interpreter boot (rubygems disabled)"),
+            summary: :minimum, description: "(cold only) Ruby interpreter boot, rubygems disabled"),
         new(label: :rubygems, opening_mark: :ruby_up, closing_mark: :rubygems_ready,
-            summary: :median, description: "the stub's require of rubygems plus Gem.use_gemdeps"),
+            summary: :median, description: "(cold only) the stub's require of rubygems plus Gem.use_gemdeps"),
         new(label: :activation, opening_mark: :rubygems_ready, closing_mark: :bin_path_resolved,
-            summary: :median, description: "resolving and activating the tool's gem dependency graph"),
+            summary: :median, description: "(cold only) resolving and activating the tool's gem dependencies"),
         new(label: :tool_run, opening_mark: :bin_path_resolved, closing_mark: :ruby_exit,
-            summary: :median, description: "loading and executing the tool itself"),
+            summary: :median, description: "(cold only) loading and executing the tool itself"),
         new(label: :reap, opening_mark: :ruby_exit, closing_mark: :harness_end,
-            summary: :median, description: "interpreter exit and process reap, back to the shell"),
+            summary: :median, description: "(cold only) interpreter exit and process reap, back to the shell"),
         new(label: :dispatch_overhead, opening_mark: :harness_start, closing_mark: :server_entry,
-            summary: :minimum, description: "ready stub, by client boot, socket round-trip, server fork"),
+            summary: :minimum,
+            description: "(hot only) stub function call, by client boot, socket round-trip, " \
+                         "server fork"),
         new(label: :server_tool_run, opening_mark: :server_entry, closing_mark: :harness_end,
-            summary: :median, description: "the preloaded tool executing inside the warm server"),
+            summary: :median, description: "(hot only) the preloaded tool executing inside the warm server"),
         new(label: :full, opening_mark: :harness_start, closing_mark: :harness_end,
             summary: :minimum, description: "everything between the harness clock reads; what a user feels"),
       ].freeze
