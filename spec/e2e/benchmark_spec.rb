@@ -10,6 +10,7 @@ RSpec.describe "ready startup benchmark", :e2e do
       expect(cold.duration_of(:tool_run)).to be > 5.0   # ...and the doc lookup itself
       expect(hot.duration_of(:full)).to be < cold.duration_of(:full)
       expect(hot.measured?(:launch)).to be false        # hot skips the rbenv/boot layer
+      expect(hot.duration_of(:stub_call)).to be < 5.0   # a function call, not a fork/exec
       expect(hot.duration_of(:dispatch_overhead)).to be > 0
     end
   end
