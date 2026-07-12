@@ -9,6 +9,9 @@ zmodload zsh/datetime
 # Appends one mark for the current run. Called from inside measured regions
 # (the generated hot stub marks stub_entry with it), so it stays a bare
 # one-line append -- no option juggling to keep its own cost negligible.
+# The timestamp is expanded before the redirection opens the file, so a
+# mark's own ~50us write cost always lands in the span it OPENS, never the
+# span it closes; instrument self-cost can't inflate the span being reported.
 bench_mark() {
   print -r -- "${READY_RUN_ID} $1 ${EPOCHREALTIME}" >> $READY_MARKS
 }
