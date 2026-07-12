@@ -1,5 +1,9 @@
 RSpec.describe Ready::Bench::Report do
-  subject(:report) { described_class.new(cold: arm_result(:cold), hot: arm_result(:hot)) }
+  subject(:report) { described_class.new(cold: arm_result(:cold), hot: arm_result(:hot), protocol:) }
+
+  let(:protocol) do
+    Ready::Bench::Protocol.new(executable_name: "irb", library: "irb", rounds: 1, warmups: 0)
+  end
 
   def arm_result(name)
     Ready::Bench::ArmResult.new(name:, warmups: 0).tap do |result|
@@ -8,7 +12,29 @@ RSpec.describe Ready::Bench::Report do
     end
   end
 
-  it "renders a waterfall including the full row without raising" do
+  it "renders the waterfall including the full row without raising" do
     expect { report.render }.to output(/full/).to_stdout
+  end
+
+  it "says exactly what was tested in the preamble" do
+    expect { report.render }.to output(/invoked as: irb --version/).to_stdout
+  end
+
+  it "gives every statistic its own column" do
+    expect { report.render }.to output(/cold minimum/).to_stdout
+  end
+
+  it "omits the legend by default" do
+    expect { report.render }.not_to output(/what it measures/).to_stdout
+  end
+
+  context "when verbose" do
+    subject(:report) do
+      described_class.new(cold: arm_result(:cold), hot: arm_result(:hot), protocol:, verbose: true)
+    end
+
+    it "appends a legend explaining every span row" do
+      expect { report.render }.to output(/what it measures/).to_stdout
+    end
   end
 end

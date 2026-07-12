@@ -22,9 +22,7 @@ namespace :spec do
   end
 end
 
-desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server; rbenv optional). " \
-     "BENCH_EXE/BENCH_LIB override the target."
-task :bench do
+def bench_runner
   require "ready"
   require "zeitwerk"
   Zeitwerk::Loader.new.tap do |loader|
@@ -36,7 +34,20 @@ task :bench do
     library: ENV.fetch("BENCH_LIB", "irb"),
     rounds: Integer(ENV.fetch("BENCH_RUNS", "15")),
     warmups: Integer(ENV.fetch("BENCH_WARMUPS", "3")),
-  ).call.render
+  )
+end
+
+desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server + rbenv). " \
+     "Choose the target with BENCH_EXE=<executable> BENCH_LIB=<library>."
+task :bench do
+  bench_runner.call.render
+end
+
+namespace :bench do
+  desc "rake bench plus a legend table explaining every span row"
+  task :verbose do
+    bench_runner.call.render(verbose: true)
+  end
 end
 
 require "rubocop/rake_task"

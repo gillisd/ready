@@ -2,22 +2,32 @@ module Ready
   module Bench
     ##
     # A named interval between two marks of a Run -- the unit every waterfall
-    # row is built from. Each span also declares the statistic that collapses
-    # many runs' samples into one representative number: :minimum for
-    # process-creation spans (scheduler jitter only ever adds time, so the
-    # floor is the structural cost) and :median for in-process spans (the
-    # typical case is the honest number).
-    class Span < Data.define(:label, :opening_mark, :closing_mark, :summary)
+    # row is built from. Each span declares the statistic that collapses many
+    # runs' samples into one representative number (:minimum for
+    # process-creation spans, where scheduler jitter only ever adds time, so
+    # the floor is the structural cost; :median for in-process spans, where
+    # the typical case is the honest number) and a description the report's
+    # legend prints.
+    class Span < Data.define(:label, :opening_mark, :closing_mark, :summary, :description)
       TABLE = [
-        new(label: :shell, opening_mark: :harness_start, closing_mark: :shim_start, summary: :minimum),
-        new(label: :launch, opening_mark: :shim_start, closing_mark: :ruby_up, summary: :minimum),
-        new(label: :rubygems, opening_mark: :ruby_up, closing_mark: :rubygems_ready, summary: :median),
-        new(label: :activation, opening_mark: :rubygems_ready, closing_mark: :bin_path_resolved, summary: :median),
-        new(label: :tool_run, opening_mark: :bin_path_resolved, closing_mark: :ruby_exit, summary: :median),
-        new(label: :reap, opening_mark: :ruby_exit, closing_mark: :harness_end, summary: :median),
-        new(label: :dispatch_overhead, opening_mark: :harness_start, closing_mark: :server_entry, summary: :minimum),
-        new(label: :server_tool_run, opening_mark: :server_entry, closing_mark: :harness_end, summary: :median),
-        new(label: :full, opening_mark: :harness_start, closing_mark: :harness_end, summary: :minimum),
+        new(label: :shell, opening_mark: :harness_start, closing_mark: :shim_start,
+            summary: :minimum, description: "shell fork/exec and PATH resolution, up to shim entry"),
+        new(label: :launch, opening_mark: :shim_start, closing_mark: :ruby_up,
+            summary: :minimum, description: "Ruby interpreter boot (rubygems disabled)"),
+        new(label: :rubygems, opening_mark: :ruby_up, closing_mark: :rubygems_ready,
+            summary: :median, description: "the stub's require of rubygems plus Gem.use_gemdeps"),
+        new(label: :activation, opening_mark: :rubygems_ready, closing_mark: :bin_path_resolved,
+            summary: :median, description: "resolving and activating the tool's gem dependency graph"),
+        new(label: :tool_run, opening_mark: :bin_path_resolved, closing_mark: :ruby_exit,
+            summary: :median, description: "loading and executing the tool itself"),
+        new(label: :reap, opening_mark: :ruby_exit, closing_mark: :harness_end,
+            summary: :median, description: "interpreter exit and process reap, back to the shell"),
+        new(label: :dispatch_overhead, opening_mark: :harness_start, closing_mark: :server_entry,
+            summary: :minimum, description: "ready stub, by client boot, socket round-trip, server fork"),
+        new(label: :server_tool_run, opening_mark: :server_entry, closing_mark: :harness_end,
+            summary: :median, description: "the preloaded tool executing inside the warm server"),
+        new(label: :full, opening_mark: :harness_start, closing_mark: :harness_end,
+            summary: :minimum, description: "everything between the harness clock reads; what a user feels"),
       ].freeze
 
       def self.table

@@ -1,6 +1,7 @@
 RSpec.describe Ready::Bench::Span do
   subject(:span) do
-    described_class.new(label: :launch, opening_mark: :shim_start, closing_mark: :ruby_up, summary: :minimum)
+    described_class.new(label: :launch, opening_mark: :shim_start, closing_mark: :ruby_up,
+                        summary: :minimum, description: "interpreter boot")
   end
 
   describe "#measure" do
@@ -22,7 +23,8 @@ RSpec.describe Ready::Bench::Span do
 
     it "takes the median of a :median span" do
       median_span = described_class.new(label: :tool_run, opening_mark: :bin_path_resolved,
-                                        closing_mark: :ruby_exit, summary: :median)
+                                        closing_mark: :ruby_exit, summary: :median,
+                                        description: "the tool itself")
       expect(median_span.summarize([100.0, 120.0, 110.0])).to eq(110.0)
     end
   end
