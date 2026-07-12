@@ -11,7 +11,8 @@ module Ready
     #                   :shell span (hot pays a function call there, no fork,
     #                   no exec -- the same boundary the cold shim marks)
     #   server_entry  - first statement of the eval'd source; command_start
-    #                   to here is :dispatch_overhead (client boot, socket,
+    #                   to here is :dispatch_overhead -- client boot, socket
+    #                   round-trip, and the server forking a worker
     #   pre_tool      - immediately before the tool's entry call, where the
     #                   preloaded requires end and :server_tool_run begins
     class HotArm
