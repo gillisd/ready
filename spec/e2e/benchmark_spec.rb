@@ -1,7 +1,7 @@
 RSpec.describe "ready startup benchmark", :e2e do
   it "shows the hot arm eliminating the boot layers and beating cold by a wide margin" do
-    protocol = Ready::Bench::Protocol.new(executable_name: "ri", library: "rdoc",
-                                          arguments: ["TCPServer"], rounds: 4, warmups: 2)
+    protocol = Ready::Bench::Protocol.new(executable_name: "ri", arguments: ["TCPServer"],
+                                          preload_gems: ["rdoc"], rounds: 4, warmups: 2)
     runner = Ready::Bench::Runner.new(protocol:, rbenv: false).call
     cold = runner.cold_summary
     hot = runner.hot_summary

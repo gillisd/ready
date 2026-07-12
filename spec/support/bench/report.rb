@@ -46,17 +46,20 @@ module Ready
       private
 
       def render_preamble
-        tool = @protocol.executable_name
-        hot_invocation = ["ready_#{tool}", *@protocol.arguments].join(" ")
         puts "ready startup benchmark"
-        puts "tool under test:   #{tool}, invoked as: #{@protocol.invocation}"
+        puts "tool under test:   #{@protocol.executable_name}, invoked as: #{@protocol.invocation}"
         puts "cold arm:          a fresh Ruby boot per run, through an instrumented copy of its rubygems stub"
-        puts "hot arm:           #{hot_invocation} dispatching to a warm by-server (#{@protocol.library} preloaded)"
+        puts "hot arm:           #{hot_invocation} dispatching to a warm by-server " \
+             "(#{@protocol.preload_gems.join(", ")} preloaded)"
         puts "protocol:          #{@protocol.rounds} measured rounds per arm (+#{@protocol.warmups} warmup, " \
              "excluded), cold/hot order alternating"
-        puts "choose the target: bin/bench EXECUTABLE [ARGUMENT ...] --library GEM"
+        puts "choose the target: bin/bench [--readyfile PATH] [EXECUTABLE ...]"
         puts "all durations in milliseconds"
         puts
+      end
+
+      def hot_invocation
+        ["ready_#{@protocol.executable_name}", *@protocol.arguments].join(" ")
       end
 
       def render_table
