@@ -2,10 +2,10 @@ module Ready
   module Bench
     ##
     # A faithful, instrumented stand-in for the rbenv shim a cold invocation
-    # hits first. Every shim marks shim_start, arms the Ruby-side prelude via
-    # RUBYOPT, boots with --disable-gems, then execs its variant's target.
-    # Subclasses answer what the shim is called on PATH (#command_word) and
-    # what it execs (#exec_line).
+    # hits first. Every shim marks command_start (closing the :shell span),
+    # arms the Ruby-side prelude via RUBYOPT, boots with --disable-gems, then
+    # execs its variant's target. Subclasses answer what the shim is called
+    # on PATH (#command_word) and what it execs (#exec_line).
     #
     # Why --disable-gems:
     #
@@ -55,7 +55,7 @@ module Ready
         <<~SH
           #!/usr/bin/env bash
           set -e
-          printf '%s shim_start %s\\n' "$READY_RUN_ID" "$EPOCHREALTIME" >> "$READY_MARKS"
+          printf '%s command_start %s\\n' "$READY_RUN_ID" "$EPOCHREALTIME" >> "$READY_MARKS"
           export RUBYOPT="--disable-gems -r#{prelude_path}${RUBYOPT:+ $RUBYOPT}"
           export RBENV_ROOT="$HOME/.rbenv"
           #{exec_line}
