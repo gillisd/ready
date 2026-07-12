@@ -14,7 +14,7 @@ READY_SOCKET = configuration.sock_path
 READY_BUILD_DIR = configuration.build_dir
 READYFILE = configuration.readyfile
 
-def run_command(*args, out: $stdout, **kwargs)
+def run_command(*args, out: $stdout, chdir: Dir.pwd, **kwargs)
   case args
   in Hash => env, *cmd
   in cmd then env = {}
@@ -24,7 +24,7 @@ def run_command(*args, out: $stdout, **kwargs)
   puts cmd.join(" ")
 
   Bundler.with_unbundled_env do
-    Open3.popen2(env, *cmd, **kwargs) do |sin, sout, wait|
+    Open3.popen2(env, *cmd.map(&:to_s), chdir: chdir.to_s, **kwargs) do |sin, sout, wait|
       sin.close
       IO.copy_stream sout, out
       result = wait.value
@@ -87,7 +87,7 @@ namespace :ready do
   end
 
   file READYFILE do
-    touch READYFILE
+    touch READYFILE.to_s
   end
 
   ready_path = EXE_DIR / "ready"
