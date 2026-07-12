@@ -19,6 +19,7 @@ The project has two halves that meet at generated code:
 `rakelib/ready.rake` is the orchestrator that drives half 1 to produce artifacts
 that half 2 consumes.
 
+It uses zeitwerk
 ## Commands
 
 ```bash
@@ -111,13 +112,22 @@ socket. Top-level `rake ready` = restart server + compile + clean.
   (`lib/ready/foo_bar.rb` → `Ready::FooBar`). A spec eager-loads everything and
   `rake zeitwerk:validate` checks naming — run it after adding/moving files.
 - **Ruby 4.0.1.** The code leans on modern syntax (`case/in` pattern matching,
-  the `it` block param, endless methods). CI pins 4.0.1.
+  the `it` block param). **No endless methods** (`def x = y`) — always regular
+  `def`/`end` blocks. CI pins 4.0.1.
 - **RuboCop is heavily customized** (see `.rubocop.yml`) via `rubocop-claude`
   (AI guardrails). Match the house style: double quotes, **no** frozen-string
   comment, trailing commas in multiline literals/args, dot-aligned multiline
   method chains, pipeline/`.then`-chaining style, short blocks
   (`Metrics/BlockLength` max 8), and every class carries an rdoc `##` comment
   (`Style/Documentation` is on).
+- **Design rulings (owner review, binding):** name the domain — real objects
+  over primitive hashes; never return an array/tuple (use a `Data.define`
+  value object whose readers carry type and unit, e.g. `PtyShell::Result`);
+  no abbreviations in names; polymorphism over boolean/type flags; symbols
+  over string keys; `Pathname` everywhere (never `File.expand_path` or
+  `File.join`); `system` calls pass `exception: true` unless the result is
+  explicitly checked; intermediate variables over nested work-doing calls;
+  multi-variant docs as tables/bullets, never paragraphs.
 - **`references/command_kit.rb/` is a vendored, read-only reference copy** of an
   external gem (its own git repo). It is not part of this project — don't edit it
   or count it when reasoning about the codebase.
