@@ -10,6 +10,13 @@ module Ready
     # the real `rbenv exec` chain (its launch span carries the rbenv cost),
     # `direct` execs the instrumented stub copy under the version ruby (no rbenv)
     # and carries the stub sub-spans.
+    #
+    # Both shims boot ruby with --disable-gems so RubyGems is NOT autoloaded
+    # during interpreter startup. Otherwise the ~45ms `require "rubygems"` is
+    # paid before ruby_up (the RUBYOPT prelude) fires, hiding it inside `launch`
+    # and leaving the stub's re-require a no-op (~0.2ms). With gems disabled,
+    # ruby_up fires first and the stub's real `require "rubygems"` lands in the
+    # `rubygems` span, matching the talk's rubygems-stub layer.
     class ColdArm
       # Mark helper + at_exit, inserted verbatim (single-quoted heredoc keeps the
       # interpolations literal, so they run inside the instrumented stub).
@@ -86,7 +93,7 @@ module Ready
           #!/usr/bin/env bash
           set -e
           printf '%s shim_start %s\\n' "$READY_RUN_ID" "$EPOCHREALTIME" >> "$READY_MARKS"
-          export RUBYOPT="-r#{prelude}${RUBYOPT:+ $RUBYOPT}"
+          export RUBYOPT="--disable-gems -r#{prelude}${RUBYOPT:+ $RUBYOPT}"
           export RBENV_ROOT="$HOME/.rbenv"
           #{target}
         SH
