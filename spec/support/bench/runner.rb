@@ -177,8 +177,12 @@ module Ready
         %w[GEM_HOME GEM_PATH].each { ENV.delete(it) if ENV[it] && !File.directory?(ENV[it]) }
       end
 
+      # Evaluated only when the caller lets rbenv default: the cold arm cannot
+      # resolve stubs without rbenv, so a missing rbenv fails fast here rather
+      # than deep inside the first round. Tests that skip the rbenv probe pass
+      # rbenv: false explicitly and never reach this.
       def rbenv_available?
-        system("command -v rbenv >/dev/null 2>&1")
+        system("command -v rbenv >/dev/null 2>&1", exception: true)
       end
     end
   end
