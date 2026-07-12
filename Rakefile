@@ -23,13 +23,29 @@ namespace :spec do
 end
 
 def bench_protocol
+  executable = ENV.fetch("BENCH_EXE", "ri")
+  # TCPServer is the default workload for the default tool only; any other
+  # executable runs bare unless BENCH_ARGS says otherwise.
+  default_arguments = executable == "ri" ? "TCPServer" : ""
   Ready::Bench::Protocol.new(
-    executable_name: ENV.fetch("BENCH_EXE", "ri"),
-    library: ENV.fetch("BENCH_LIB", "rdoc"),
-    arguments: ENV.fetch("BENCH_ARGS", "TCPServer").split,
+    executable_name: executable,
+    arguments: ENV.fetch("BENCH_ARGS", default_arguments).split,
+    preload_gems: bench_preload_gems,
     rounds: Integer(ENV.fetch("BENCH_RUNS", "15")),
     warmups: Integer(ENV.fetch("BENCH_WARMUPS", "3")),
   )
+end
+
+# The hot server preloads the gems a readyfile declares (BENCH_READYFILE),
+# falling back to rdoc, which ships the default tool. The build_dir is
+# irrelevant here -- only gem names are read -- but Readyfile requires an
+# existing directory, so the readyfile's own parent satisfies it.
+def bench_preload_gems
+  readyfile_path = ENV.fetch("BENCH_READYFILE", nil)
+  return ["rdoc"] if readyfile_path.nil?
+
+  readyfile_path = Pathname(readyfile_path)
+  Ready::Readyfile.open(readyfile_path, build_dir: readyfile_path.expand_path.parent).gem_names
 end
 
 def bench_runner
@@ -43,16 +59,33 @@ def bench_runner
   Ready::Bench::Runner.new(protocol: bench_protocol)
 end
 
-desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server + rbenv). " \
-     "Choose the target with BENCH_EXE=<executable> BENCH_LIB=<library> BENCH_ARGS=<arguments>."
+# Appends this run's headline numbers as "executable,arm,full_ms" rows so a
+# caller sequencing several benchmarks (bin/bench --plot) can chart them.
+def export_bench_results(runner)
+  results_path = ENV.fetch("BENCH_RESULTS", nil)
+  return unless results_path
+
+  cold_full = runner.cold_summary.duration_of(:full)
+  hot_full = runner.hot_summary.duration_of(:full)
+  rows = "#{runner.executable_name},cold,#{cold_full}\n#{runner.executable_name},hot,#{hot_full}\n"
+  Pathname(results_path).write(rows, mode: "a")
+end
+
+def run_bench(verbose:)
+  runner = bench_runner.call
+  runner.render(verbose:)
+  export_bench_results(runner)
+end
+
+desc "Print the cold-vs-hot startup waterfall (needs zsh + by-server + rbenv); bin/bench is the front door"
 task :bench do
-  bench_runner.call.render
+  run_bench(verbose: false)
 end
 
 namespace :bench do
   desc "rake bench plus a legend table explaining every span row"
   task :verbose do
-    bench_runner.call.render(verbose: true)
+    run_bench(verbose: true)
   end
 end
 

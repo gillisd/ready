@@ -2,8 +2,8 @@ RSpec.describe Ready::Bench::Report do
   subject(:report) { described_class.new(cold: arm_result(:cold), hot: arm_result(:hot), protocol:) }
 
   let(:protocol) do
-    Ready::Bench::Protocol.new(executable_name: "ri", library: "rdoc", arguments: ["TCPServer"],
-                               rounds: 1, warmups: 0)
+    Ready::Bench::Protocol.new(executable_name: "ri", arguments: ["TCPServer"],
+                               preload_gems: ["rdoc"], rounds: 1, warmups: 0)
   end
 
   def arm_result(name)

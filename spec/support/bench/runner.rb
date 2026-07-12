@@ -15,7 +15,7 @@ module Ready
     class Runner
       attr_reader :rbenv_shim_overhead
 
-      def initialize(protocol: Protocol.default, rbenv: rbenv_available?)
+      def initialize(protocol: Protocol.default, rbenv: Bench.rbenv_available?)
         @protocol = protocol
         @rbenv = rbenv
         @cold_result = ArmResult.new(name: :cold, warmups: protocol.warmups)
@@ -63,7 +63,7 @@ module Ready
       def build
         @tmp = Pathname(Dir.mktmpdir("bench"))
         @marks_log = MarksLog.new(@tmp / "marks")
-        @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: [@protocol.library])
+        @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: @protocol.preload_gems)
         @cold_arm = ColdArm.new(executable_name:, workdir: @tmp / "cold", marks_log: @marks_log)
         @cold_arm.instrument!
         @hot_arm = HotArm.new(executable_name:, rendered_source: render_production_source,
@@ -178,14 +178,6 @@ module Ready
 
       def drop_stale_gem_home
         %w[GEM_HOME GEM_PATH].each { ENV.delete(it) if ENV[it] && !File.directory?(ENV[it]) }
-      end
-
-      # Evaluated only when the caller lets rbenv default: the cold arm cannot
-      # resolve stubs without rbenv, so a missing rbenv fails fast here rather
-      # than deep inside the first round. Tests that skip the rbenv probe pass
-      # rbenv: false explicitly and never reach this.
-      def rbenv_available?
-        system("command -v rbenv >/dev/null 2>&1", exception: true)
       end
     end
   end
