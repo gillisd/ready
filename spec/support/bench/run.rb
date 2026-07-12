@@ -13,7 +13,9 @@ module Ready
         @mark_times = mark_times.dup.freeze
       end
 
-      def recorded?(mark_name) = @mark_times.key?(mark_name)
+      def recorded?(mark_name)
+        @mark_times.key?(mark_name)
+      end
 
       def milliseconds_between(opening_mark, closing_mark)
         (@mark_times.fetch(closing_mark) - @mark_times.fetch(opening_mark)) * 1000.0

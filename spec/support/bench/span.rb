@@ -20,7 +20,9 @@ module Ready
         new(label: :full, opening_mark: :harness_start, closing_mark: :harness_end, summary: :minimum),
       ].freeze
 
-      def self.table = TABLE
+      def self.table
+        TABLE
+      end
 
       # Milliseconds between this span's marks, or nil when the run did not
       # record them both (a hot run has no shim marks, a cold run no server
@@ -31,7 +33,9 @@ module Ready
         run.milliseconds_between(opening_mark, closing_mark)
       end
 
-      def measured_by?(run) = run.recorded?(opening_mark) && run.recorded?(closing_mark)
+      def measured_by?(run)
+        run.recorded?(opening_mark) && run.recorded?(closing_mark)
+      end
 
       # Collapses many runs' samples of this span into one representative
       # number, using the statistic the span declared for itself. An unknown

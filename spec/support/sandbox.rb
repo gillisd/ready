@@ -36,7 +36,9 @@ module Ready
       }
     end
 
-    def plugin_path = PLUGIN_PATH
+    def plugin_path
+      PLUGIN_PATH
+    end
 
     def up
       FileUtils.mkdir_p(prefix / "builds")

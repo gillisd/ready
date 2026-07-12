@@ -17,10 +17,14 @@ module Ready
         end
       RUBY
 
-      def self.definition = DEFINITION
+      def self.definition
+        DEFINITION
+      end
 
       # A statement recording +mark_name+, for splicing in after .definition.
-      def self.record(mark_name) = %(ready_bench_mark("#{mark_name}"))
+      def self.record(mark_name)
+        %(ready_bench_mark("#{mark_name}"))
+      end
     end
   end
 end

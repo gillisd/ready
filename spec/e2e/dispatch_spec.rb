@@ -12,15 +12,15 @@ RSpec.describe "ready end-to-end dispatch", :e2e do
 
   it "aliases the bare command to the ready_ stub via readyinit" do
     in_shell do |shell|
-      output, = shell.run("whence -v rake")
-      expect(output).to include("rake is an alias for ready_rake")
+      result = shell.run("whence -v rake")
+      expect(result.output).to include("rake is an alias for ready_rake")
     end
   end
 
   it "dispatches through the by-server and returns the executable's real output" do
     in_shell do |shell|
-      output, = shell.run("rake --version")
-      expect(output).to match(/rake, version \d+\.\d+/)
+      result = shell.run("rake --version")
+      expect(result.output).to match(/rake, version \d+\.\d+/)
     end
   end
 end

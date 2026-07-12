@@ -4,7 +4,7 @@ RSpec.describe Ready::Bench::Report do
   def arm_result(name)
     Ready::Bench::ArmResult.new(name:, warmups: 0).tap do |result|
       waterfall = Ready::Bench::Waterfall.new(rubygems: 5.0, full: 20.0)
-      result.record(waterfall:, wall_seconds: 0.02)
+      result.record(Ready::Bench::Measurement.new(waterfall:, wall_clock_seconds: 0.02))
     end
   end
 

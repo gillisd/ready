@@ -43,7 +43,9 @@ module Ready
 
       # Hook for a variant's extra construction state; overriding it never
       # requires calling super.
-      def post_initialize(**) = nil
+      def post_initialize(**)
+        nil
+      end
 
       def exec_line
         raise NotImplementedError, "#{self.class} must supply its exec line"
