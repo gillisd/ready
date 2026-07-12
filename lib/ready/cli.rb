@@ -1,4 +1,5 @@
 require "command_kit/commands"
+require "command_kit/options/version"
 
 module Ready
   ##
@@ -11,8 +12,10 @@ module Ready
   class CLI
 
     include CommandKit::Commands
+    include CommandKit::Options::Version
 
     command_name "ready"
+    version Ready::VERSION
 
     command Init
     command Up
