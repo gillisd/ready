@@ -161,6 +161,12 @@ RSpec/InstanceVariable:
   Exclude:
     - "spec/e2e/**/*"
 
+# E2E examples are longer by nature (shell/server setup + several aggregated
+# structural assertions per example).
+RSpec/ExampleLength:
+  Exclude:
+    - "spec/e2e/**/*"
+
 # The e2e and benchmark suites are grouped by test type, not class namespace,
 # so their paths deliberately do not mirror the described constant.
 RSpec/SpecFilePathFormat:
