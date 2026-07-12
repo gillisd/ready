@@ -33,24 +33,33 @@ def run_command(*args, out: $stdout, **kwargs)
   end
 end
 
+# Compile a stub atomically. File.open(target, "w") truncates before the child
+# runs, so a failed `ready compile` would destroy the last-good stub AND leave a
+# broken file rake treats as up to date on later builds (zsh then tries to run
+# the garbage). Write to a temp file and only move it into place on success.
+def atomic_compile(target, env, *cmd)
+  tmp = "#{target}.tmp"
+  File.open(tmp, "w") { |f| run_command(env, *cmd, out: f) }
+  File.rename tmp, target
+rescue StandardError
+  FileUtils.rm_f(tmp)
+  raise
+end
+
 def compile_by(target:)
   shell_load_path = [EXE_DIR, ENV.fetch("PATH", "")].join ":"
   env = ENV.to_h.merge(
     "PATH" => shell_load_path,
     "BY_SOCKET" => READY_SOCKET.to_s,
   )
-  File.open target, "w" do |f|
-    run_command env, "ready", "compile", "by", "--no-rubygems", "--no-yjit", out: f
-  end
+  atomic_compile target, env, "ready", "compile", "by", "--no-rubygems", "--no-yjit"
 end
 
 def compile_gem(executable_name, target:)
   shell_load_path = [EXE_DIR, ENV.fetch("PATH", "")].join ":"
   env = ENV.to_h.merge("PATH" => shell_load_path)
 
-  File.open target, "w" do |f|
-    run_command env, "ready", "compile", "--environment", "BY_SOCKET=#{READY_SOCKET}", executable_name, out: f
-  end
+  atomic_compile target, env, "ready", "compile", "--environment", "BY_SOCKET=#{READY_SOCKET}", executable_name
 end
 
 namespace :ready do
