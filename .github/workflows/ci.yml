@@ -42,13 +42,15 @@ jobs:
       with:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true
-    # The sandbox runs `ready up` inside Bundler.with_unbundled_env (simulating
-    # a real user's non-bundler install), which strips the bundle's bin path.
-    # With bundler-cache's path install, by-server lives only there, so the
-    # daemon spawn can't find it. Install the pinned by on the base PATH -- the
-    # same place rbenv puts it locally and on the macos-e2e job.
-    - name: Install by-server on the base PATH
-      run: gem install by -v 1.1.0
+    # The benchmark deliberately runs two scrubbed, unbundled subprocesses that
+    # resolve gems the way a real (non-bundler) install does: `ready up` spawns
+    # by-server, and render_production_source does `require "ready"` (which
+    # needs zeitwerk). With bundler-cache's path install those gems live only in
+    # the bundle, so the scrubbed processes can't see them. Put ready's runtime
+    # deps on the base PATH at their locked versions -- where rbenv has them
+    # locally and on the macos-e2e job.
+    - name: Install ready's runtime deps on the base PATH
+      run: gem install by:1.1.0 zeitwerk:2.8.2
     - name: Run E2E specs
       run: bundle exec rake spec:e2e
 
