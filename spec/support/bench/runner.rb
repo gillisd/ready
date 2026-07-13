@@ -37,7 +37,7 @@ module Ready
       def call
         @progress.building
         build
-        measure_rounds
+        run_schedule
         derive_rbenv_shim_overhead
         self
       ensure
@@ -68,14 +68,26 @@ module Ready
 
       private
 
-      def measure_rounds
-        total = @protocol.rounds + @protocol.warmups
-        @progress.running(total)
-        (1..total).each do |number|
-          round(number)
-          @progress.tick
-        end
+      # Warmup rounds run first (and are dropped from the results by ArmResult);
+      # the measured rounds the user asked for follow. Reporting them as
+      # separate phases keeps `--rounds 4` from showing as 7.
+      def run_schedule
+        warmup_rounds, measured_rounds = schedule.partition(&:warmup?)
+        @progress.warming_up(warmup_rounds.size)
+        warmup_rounds.each { run_and_tick(it) }
+        @progress.measuring(measured_rounds.size)
+        measured_rounds.each { run_and_tick(it) }
         @progress.done
+      end
+
+      def schedule
+        total = @protocol.rounds + @protocol.warmups
+        (1..total).map { |number| Round.new(number:, warmup: number <= @protocol.warmups) }
+      end
+
+      def run_and_tick(round)
+        run_round(round)
+        @progress.tick
       end
 
       def build
@@ -106,17 +118,13 @@ module Ready
         output
       end
 
-      # Cold-first on even rounds, hot-first on odd, so run-order drift
-      # cancels out across the session.
-      def round(number)
-        if number.even?
-          run_cold("cold.#{number}")
-          run_hot("hot.#{number}")
-        else
-          run_hot("hot.#{number}")
-          run_cold("cold.#{number}")
-        end
-        probe_rbenv_shim("rbenv.#{number}") if @rbenv
+      def run_round(round)
+        round.arm_order.each { |arm| run_arm(arm, round) }
+        probe_rbenv_shim(round.run_id(:rbenv)) if @rbenv
+      end
+
+      def run_arm(arm, round)
+        arm == :cold ? run_cold(round.run_id(:cold)) : run_hot(round.run_id(:hot))
       end
 
       def run_cold(run_id)
