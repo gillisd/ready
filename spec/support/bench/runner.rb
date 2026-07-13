@@ -161,12 +161,9 @@ module Ready
         end
       end
 
-      # stdin is /dev/null so a bare interactive tool (ri, irb) reads EOF and
-      # exits at once instead of blocking on the pty for its prompt; a command
-      # that never reads stdin (ri TCPServer) is unaffected.
       def harness_command(run_id, command_word)
         workload = [command_word, *@protocol.arguments].join(" ")
-        "bench_harness #{run_id} -- #{workload} </dev/null >/dev/null 2>&1"
+        "bench_harness #{run_id} -- #{workload} >/dev/null 2>&1"
       end
 
       def hot_setup(run_id)
