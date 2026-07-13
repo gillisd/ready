@@ -69,7 +69,8 @@ jobs:
     - name: Run E2E specs (job timeout fails a true hang fast)
       run: gtimeout --signal=KILL 900 bundle exec rake spec:e2e
     - name: Run the real benchmark (what bin/bench runs), short
-      run: gtimeout --signal=KILL 400 bundle exec rake bench BENCH_RUNS=3 BENCH_WARMUPS=1 || echo "bench exited non-zero: $?"
+      run: |
+        gtimeout --signal=KILL 400 bundle exec rake bench BENCH_RUNS=3 BENCH_WARMUPS=1 || echo "bench exited non-zero: $?"
     - name: Detect leaked processes (the reported bug)
       if: always()
       run: |
