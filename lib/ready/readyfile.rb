@@ -1,4 +1,3 @@
-require "pathname"
 require "yaml"
 
 module Ready
@@ -12,8 +11,11 @@ module Ready
       # A missing, empty, or null readyfile is not an error: it simply declares
       # no gems or executables. YAML.parse_file returns false for an empty file,
       # and a document such as "---" parses to nil.
+      # YAML.parse_file returns `false` for an empty file (not nil), so guard on
+      # truthiness, not with `&.` -- false&.to_ruby would blow up. A "---"
+      # document is truthy but to_ruby's to nil, which the `|| {}` folds to empty.
       document = (YAML.parse_file(path.to_s) if path.exist?)
-      config = (document.to_ruby if document) || {}
+      config = (document ? document.to_ruby : {}) || {}
 
       unless config.is_a?(Hash)
         raise Error, "#{path}: readyfile must be a YAML mapping of gems:/executables:, got #{config.class}"
