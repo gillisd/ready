@@ -18,12 +18,15 @@ module Ready
 
       private
 
+      # A malformed line (e.g. a mark whose shell left the timestamp empty) is
+      # skipped rather than crashing the run: the span that needed it simply
+      # goes unmeasured.
       def mark_times_for(id)
         return {} unless path.exist?
 
         path.readlines
             .map(&:split)
-            .select { |run_id, _mark_name, _seconds| run_id == id }
+            .select { |fields| fields.length == 3 && fields.first == id }
             .to_h { |_run_id, mark_name, seconds| [mark_name.to_sym, Float(seconds)] }
       end
     end
