@@ -13,10 +13,11 @@ module Ready
     #   two shims    - RbenvShim (the real `rbenv exec` chain) and DirectShim
     #                  (execs the stub copy under this Ruby); see each class
     class ColdArm
-      def initialize(executable_name:, workdir:, marks_log:)
+      def initialize(executable_name:, workdir:, marks_log:, rbenv: true)
         @executable_name = executable_name
         @workdir = Pathname(workdir)
         @marks_log = marks_log
+        @rbenv = rbenv
       end
 
       def rbenv_shim
@@ -32,7 +33,7 @@ module Ready
         workdir.mkpath
         write_prelude
         write_instrumented_stub
-        [rbenv_shim, direct_shim].each(&:write!)
+        shims.each(&:write!)
       end
 
       # Environment a shell exports so marks land in the log and the shim
@@ -49,12 +50,19 @@ module Ready
 
       attr_reader :executable_name, :workdir
 
+      # The rbenv shim exists only to measure the real `rbenv exec` overhead,
+      # which the runner probes only when rbenv is present. Without rbenv the
+      # clean DirectShim is the whole cold arm.
+      def shims
+        @rbenv ? [rbenv_shim, direct_shim] : [direct_shim]
+      end
+
       def write_prelude
         prelude_path.write("#{MarkHelper.definition}#{MarkHelper.record(:ruby_up)}\n")
       end
 
       def write_instrumented_stub
-        stub = RubygemsStub.for_executable(executable_name)
+        stub = RubygemsStub.for_executable(executable_name, rbenv: @rbenv)
         instrumented_stub_path.write(stub.instrumented_source)
       end
 

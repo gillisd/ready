@@ -94,7 +94,7 @@ module Ready
         @tmp = Pathname(Dir.mktmpdir("bench"))
         @marks_log = MarksLog.new(@tmp / "marks")
         @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: @protocol.preload_gems)
-        @cold_arm = ColdArm.new(executable_name:, workdir: @tmp / "cold", marks_log: @marks_log)
+        @cold_arm = ColdArm.new(executable_name:, workdir: @tmp / "cold", marks_log: @marks_log, rbenv: @rbenv)
         @cold_arm.instrument!
         @hot_arm = HotArm.new(executable_name:, rendered_source: render_production_source,
                               sandbox: @sandbox, marks_log: @marks_log)
