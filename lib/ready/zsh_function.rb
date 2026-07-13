@@ -1,5 +1,4 @@
 require "erb"
-require "pathname"
 
 module Ready
   ##
@@ -23,14 +22,6 @@ module Ready
         ruby: executable.render,
         env: environment,
       )
-    end
-
-    private
-
-    def render_environment_string
-      return "" if @environment.empty?
-
-      @environment.map { |key, value| "#{key}=#{value}" }.then { |it| it.join(" ") }
     end
   end
 end

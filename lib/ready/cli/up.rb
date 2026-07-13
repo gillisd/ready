@@ -6,7 +6,6 @@ module Ready
     # Compiles every stub and (re)starts the ready server, by delegating to the
     # `rake ready` task.
     class Up < CommandKit::Command
-
       include RakeCommand
 
       description "Compile all stubs and start the ready server"
@@ -17,7 +16,6 @@ module Ready
       def run
         rake("ready")
       end
-
     end
   end
 end

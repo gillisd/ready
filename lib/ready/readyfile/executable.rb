@@ -1,5 +1,3 @@
-require "pathname"
-
 ##
 # A single executable declared in a readyfile, mapping its name to the
 # compiled path under the build directory.
@@ -29,8 +27,16 @@ class Ready::Readyfile::Executable
   private
 
   def validate!
+    validate_name!
+    validate_build_dir!
+  end
+
+  def validate_name!
     raise ArgumentError, "Name cannot be nil" if name.nil?
     raise ArgumentError, "Name cannot be empty" if name.empty?
+  end
+
+  def validate_build_dir!
     raise ArgumentError, "build_dir cannot be nil for executable #{name.inspect}" if build_dir.nil?
     return if build_dir.directory?
 
