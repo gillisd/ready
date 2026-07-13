@@ -69,27 +69,21 @@ jobs:
       run: |
         gem install bundler
         bundle install
-    # set +e so a gtimeout-killed probe (exit 137) does not abort the step
-    # under bash -e -- otherwise the failing probe skips every later probe.
-    # Each probe runs alone so a hang is pinned to it. 0 = passed, 137 = hung.
-    - name: Probe 1 -- basic pty marker sync
-      run: |
-        set +e
-        gtimeout -s KILL 90 env READY_E2E=1 bundle exec rspec spec/e2e/pty_shell_spec.rb 2>&1
-        echo "PROBE1_PTY exit: $?"
-    - name: Probe 2 -- hot dispatch through the plugin + by-server
-      run: |
-        set +e
-        gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/dispatch_spec.rb 2>&1
-        echo "PROBE2_DISPATCH exit: $?"
-    - name: Probe 3 -- rake bench, ri, TRACED (breadcrumbs pinpoint the hang)
-      run: |
-        set +e
-        BENCH_TRACE=1 gtimeout -s KILL 75 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=1 BENCH_WARMUPS=0 2>&1
-        echo "PROBE3_RI_TRACED exit: $?"
-    - name: Detect leaked processes
+    # A hard gtimeout wraps each step so a regression hangs the job for
+    # seconds, not the 6h GitHub ceiling. The whole point of this job is that
+    # the harness must run to completion on macOS (default zsh, rbenv).
+    - name: Run the e2e suite
+      run: gtimeout -s KILL 300 bundle exec rake spec:e2e
+    - name: Run the real benchmark (what bin/bench runs)
+      run: gtimeout -s KILL 200 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=2 BENCH_WARMUPS=1
+    - name: Fail if the harness leaked any process
       if: always()
       run: |
-        echo "=== surviving by-server ==="; pgrep -fl by-server || echo none
-        echo "=== surviving ready-e2e ==="; pgrep -fl ready-e2e || echo none
-        echo "leaked: $(pgrep -f 'by-server|ready-e2e' | wc -l | tr -d ' ')"
+        pgrep -fl by-server || echo "no by-server"
+        pgrep -fl ready-e2e || echo "no ready-e2e"
+        leaked=$(pgrep -f 'by-server|ready-e2e' | wc -l | tr -d ' ')
+        echo "leaked process count: $leaked"
+        if [ "$leaked" != "0" ]; then
+          echo "::error::harness leaked $leaked process(es)"
+          exit 1
+        fi
