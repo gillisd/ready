@@ -39,6 +39,7 @@ module Ready
 
       def render
         render_headline
+        render_slide_summary
         render_preamble
         render_table
         render_rbenv_note
@@ -73,6 +74,13 @@ module Ready
 
       def cold_note
         @rbenv_shim_overhead ? "fresh boot, through the rbenv shim" : "fresh boot"
+      end
+
+      # The one-slide version of the waterfall: the cold path collapsed to the
+      # handful of layers, in plain words, with the real end-to-end total.
+      def render_slide_summary
+        puts SlideSummary.new(cold: @cold, rbenv_shim_overhead: @rbenv_shim_overhead).render
+        puts
       end
 
       def render_preamble
