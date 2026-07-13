@@ -42,7 +42,7 @@ module Ready
           "READY_MARKS" => @marks_log.path.to_s,
           "READY_RUN_ID" => run_id,
           "PATH" => "#{workdir}:#{ENV.fetch("PATH", nil)}",
-        }
+        }.merge(Ready::Sandbox::NON_INTERACTIVE_ENV)
       end
 
       private

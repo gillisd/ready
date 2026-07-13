@@ -14,6 +14,11 @@ module Ready
     PLUGIN_PATH = Ready.root / "zsh" / "ready" / "ready.plugin.zsh"
     EXE_READY = Ready.root / "exe" / "ready"
 
+    # Tools run through the harness must never page: a pager grabs the pty and
+    # can leave a suspended child that wedges shell teardown. Neutralize the
+    # common pagers so every benched tool runs to completion non-interactively.
+    NON_INTERACTIVE_ENV = { "PAGER" => "cat", "RI_PAGER" => "cat", "GIT_PAGER" => "cat" }.freeze
+
     def self.build(executables:, gems: [])
       new(executables:, gems:).tap(&:up)
     end
@@ -27,13 +32,15 @@ module Ready
     end
 
     # Env a pty must set so the plugin attaches to THIS sandbox's live server.
+    # Carries the no-pager env, which build_env inherits, so the by-server
+    # (and its forked hot-arm workers) never launch a pager.
     def shell_env
       {
         "READY_PREFIX" => prefix.to_s,
         "READY_SOCK_PATH" => sock_path.to_s,
         "READY_LOG_PATH" => (prefix / "ready.log").to_s,
         "READY_DEBUG" => "0",
-      }
+      }.merge(NON_INTERACTIVE_ENV)
     end
 
     def plugin_path
