@@ -78,23 +78,15 @@ module Ready
         @progress.done
       end
 
-      def trace(message)
-        warn("[bench-trace] #{message}") if ENV["BENCH_TRACE"]
-      end
-
       def build
         @tmp = Pathname(Dir.mktmpdir("bench"))
         @marks_log = MarksLog.new(@tmp / "marks")
-        trace("build: booting sandbox (preload #{@protocol.preload_gems.inspect})")
         @sandbox = Ready::Sandbox.build(executables: ["rake"], gems: @protocol.preload_gems)
-        trace("build: sandbox up; instrumenting cold arm")
         @cold_arm = ColdArm.new(executable_name:, workdir: @tmp / "cold", marks_log: @marks_log)
         @cold_arm.instrument!
-        trace("build: rendering hot source")
         @hot_arm = HotArm.new(executable_name:, rendered_source: render_production_source,
                               sandbox: @sandbox, marks_log: @marks_log)
         (@tmp / "stub.zsh").write(@hot_arm.stub_function)
-        trace("build: done")
       end
 
       # Renders the hot stub source the way production `ready gem <name>`
@@ -144,18 +136,12 @@ module Ready
       def cold_invocation(run_id, shim:)
         Bundler.with_unbundled_env do
           drop_stale_gem_home
-          trace("#{run_id}: opening cold pty shell (#{shim.command_word})")
           shell = Ready::PtyShell.new(@cold_arm.environment_for(run_id:))
-          trace("#{run_id}: cold shell open; sourcing profiler")
           shell.run("source #{profiler_path}")
-          trace("#{run_id}: cold profiler sourced; dispatching #{harness_command(run_id, shim.command_word).inspect}")
           harness_run = shell.run(harness_command(run_id, shim.command_word))
-          trace("#{run_id}: cold dispatch returned")
           measurement_for(run_id, harness_run)
         ensure
-          trace("#{run_id}: closing cold shell")
           shell&.close
-          trace("#{run_id}: cold shell closed")
         end
       end
 
@@ -165,19 +151,13 @@ module Ready
       def run_hot(run_id)
         Bundler.with_unbundled_env do
           drop_stale_gem_home
-          trace("#{run_id}: opening pty shell")
           shell = Ready::PtyShell.new(@sandbox.shell_env)
-          trace("#{run_id}: shell open; sourcing plugin+prof+stub")
           shell.run(hot_setup(run_id))
-          trace("#{run_id}: setup done; dispatching #{harness_command(run_id, "ready_#{executable_name}").inspect}")
           harness_run = shell.run(harness_command(run_id, "ready_#{executable_name}"))
-          trace("#{run_id}: dispatch returned")
           measurement = measurement_for(run_id, harness_run)
           @hot_result.record(measurement)
         ensure
-          trace("#{run_id}: closing shell")
           shell&.close
-          trace("#{run_id}: shell closed")
         end
       end
 
