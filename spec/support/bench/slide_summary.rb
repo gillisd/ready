@@ -3,10 +3,13 @@ module Ready
     ##
     # The cold-startup breakdown condensed to the few layers an audience can
     # hold at once -- the version meant for a slide. Each line pairs a plain
-    # label with the real measured milliseconds of the cold arm's matching
+    # label with the cold arm's floor (minimum) milliseconds for the matching
     # span(s): Ruby's interpreter boot rides under "rubygems" (the phase people
-    # know by that name) and the tiny reap is left to the tilde on the total,
-    # which reports the real end-to-end cold time, not the rounded rows' sum.
+    # know by that name). Using the floor -- the same statistic the headline's
+    # cold total uses -- keeps the layers summing to that total rather than
+    # overshooting it (median layers can exceed the whole once a tool drags in a
+    # big dependency graph); the tiny reap and the slack between the layer
+    # floors and the full floor fall under the tilde on the total.
     class SlideSummary
       TITLE = "where the cold startup goes (slide summary)".freeze
 
@@ -61,8 +64,16 @@ module Ready
       end
 
       def layer_line(layer)
-        milliseconds = layer.spans.sum { @cold.duration_of(it) || 0.0 }
+        milliseconds = layer.spans.sum { minimum_of(it) }
         Line.new(label: layer.label, milliseconds:, prefix: "")
+      end
+
+      # A span's structural floor: its minimum across measured runs. The slide
+      # sums floors (not medians) so the layers add up to the min-based cold
+      # total the headline reports instead of overshooting it.
+      def minimum_of(span)
+        samples = @cold.samples_of(span)
+        samples.empty? ? 0.0 : samples.min
       end
 
       def rbenv_line
