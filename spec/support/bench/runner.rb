@@ -144,12 +144,18 @@ module Ready
       def cold_invocation(run_id, shim:)
         Bundler.with_unbundled_env do
           drop_stale_gem_home
+          trace("#{run_id}: opening cold pty shell (#{shim.command_word})")
           shell = Ready::PtyShell.new(@cold_arm.environment_for(run_id:))
+          trace("#{run_id}: cold shell open; sourcing profiler")
           shell.run("source #{profiler_path}")
+          trace("#{run_id}: cold profiler sourced; dispatching #{harness_command(run_id, shim.command_word).inspect}")
           harness_run = shell.run(harness_command(run_id, shim.command_word))
+          trace("#{run_id}: cold dispatch returned")
           measurement_for(run_id, harness_run)
         ensure
+          trace("#{run_id}: closing cold shell")
           shell&.close
+          trace("#{run_id}: cold shell closed")
         end
       end
 
