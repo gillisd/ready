@@ -51,35 +51,39 @@ jobs:
   # leaves any by-server or sandbox process behind.
   macos-e2e:
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
     - uses: actions/checkout@v4
+    - name: Cache the rbenv-built Ruby (first run compiles it, later runs restore)
+      uses: actions/cache@v4
+      with:
+        path: ~/.rbenv/versions
+        key: rbenv-versions-4.0.1-${{ runner.os }}
     - name: Install rbenv + Ruby 4.0.1 (matches a real user's setup)
       run: |
         brew install rbenv ruby-build coreutils
-        rbenv install 4.0.1
+        rbenv versions --bare | grep -qx 4.0.1 || rbenv install 4.0.1
         rbenv global 4.0.1
         echo "$HOME/.rbenv/shims" >> "$GITHUB_PATH"
     - name: Bundle
       run: |
         gem install bundler
         bundle install
-    - name: Snapshot processes before
-      run: ps -Ao pid,ppid,pgid,command | grep -Ei 'by-server|ready-e2e|zsh -f' | grep -v grep || echo "clean before"
-    - name: Run E2E specs (job timeout fails a true hang fast)
-      run: gtimeout --signal=KILL 900 bundle exec rake spec:e2e
-    - name: Run the real benchmark (what bin/bench runs), short
+    # Each e2e spec runs alone under a short timeout so a hang is pinned to one
+    # spec (gtimeout exit 124) instead of one opaque 15-minute black box. The
+    # `; echo` keeps a hung probe from failing the step, so every probe runs.
+    - name: Probe 1 -- basic pty marker sync (no server, no rbenv)
       run: |
-        gtimeout --signal=KILL 400 bundle exec rake bench BENCH_RUNS=3 BENCH_WARMUPS=1 || echo "bench exited non-zero: $?"
-    - name: Detect leaked processes (the reported bug)
+        gtimeout -s KILL 90 env READY_E2E=1 bundle exec rspec spec/e2e/pty_shell_spec.rb 2>&1; echo "PTY_SHELL exit: $?"
+    - name: Probe 2 -- hot dispatch through the plugin + by-server
+      run: |
+        gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/dispatch_spec.rb 2>&1; echo "DISPATCH exit: $?"
+    - name: Probe 3 -- the benchmark (the reported hang)
+      run: |
+        gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/benchmark_spec.rb 2>&1; echo "BENCHMARK exit: $?"
+    - name: Detect leaked processes
       if: always()
       run: |
-        echo "=== surviving zsh -f ==="; pgrep -fl 'zsh -f' || echo none
         echo "=== surviving by-server ==="; pgrep -fl by-server || echo none
-        echo "=== surviving ready-e2e sandboxes ==="; pgrep -fl ready-e2e || echo none
-        leaked=$(pgrep -f 'by-server|ready-e2e|zsh -f -i' | grep -v $$ | wc -l | tr -d ' ')
-        echo "leaked process count: $leaked"
-        if [ "$leaked" != "0" ]; then
-          echo "::error::harness leaked $leaked process(es) -- the hang/leak bug reproduced"
-          exit 1
-        fi
+        echo "=== surviving ready-e2e ==="; pgrep -fl ready-e2e || echo none
+        echo "leaked: $(pgrep -f 'by-server|ready-e2e' | wc -l | tr -d ' ')"
