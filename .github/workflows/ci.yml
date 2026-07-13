@@ -78,9 +78,12 @@ jobs:
     - name: Probe 2 -- hot dispatch through the plugin + by-server
       run: |
         gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/dispatch_spec.rb 2>&1; echo "DISPATCH exit: $?"
-    - name: Probe 3 -- the benchmark (the reported hang)
+    - name: Probe 3a -- benchmark as-is (reproduces the hang)
       run: |
-        gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/benchmark_spec.rb 2>&1; echo "BENCHMARK exit: $?"
+        gtimeout -s KILL 90 env READY_E2E=1 bundle exec rspec spec/e2e/benchmark_spec.rb 2>&1; echo "BENCH_WITH_PAGER exit: $?"
+    - name: Probe 3b -- benchmark with the pager neutralized (hypothesis test)
+      run: |
+        gtimeout -s KILL 120 env READY_E2E=1 RI_PAGER=cat PAGER=cat bundle exec rspec spec/e2e/benchmark_spec.rb 2>&1; echo "BENCH_NO_PAGER exit: $?"
     - name: Detect leaked processes
       if: always()
       run: |
