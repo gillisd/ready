@@ -51,11 +51,16 @@ module Ready
         raise NotImplementedError, "#{self.class} must supply its exec line"
       end
 
+      # A zsh script, not bash: it marks command_start with $EPOCHREALTIME,
+      # which zsh always provides via zsh/datetime. macOS still ships bash 3.2,
+      # where $EPOCHREALTIME is empty -- that produced a timestamp-less mark and
+      # crashed the parser. zsh is the shell the whole harness already requires.
       def script
         <<~SH
-          #!/usr/bin/env bash
+          #!/usr/bin/env zsh
           set -e
-          printf '%s command_start %s\\n' "$READY_RUN_ID" "$EPOCHREALTIME" >> "$READY_MARKS"
+          zmodload zsh/datetime
+          print -r -- "$READY_RUN_ID command_start $EPOCHREALTIME" >> "$READY_MARKS"
           export RUBYOPT="--disable-gems -r#{prelude_path}${RUBYOPT:+ $RUBYOPT}"
           export RBENV_ROOT="$HOME/.rbenv"
           #{exec_line}
