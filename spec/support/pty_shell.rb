@@ -30,7 +30,7 @@ module Ready
       send_line("PS1='@@''P> '")
       await(PROMPT, "shell startup")
     rescue StandardError
-      kill_group
+      terminate_group
       reap
       raise
     end
@@ -48,16 +48,17 @@ module Ready
 
     # A graceful `exit` can hang: an interactive zsh refuses to exit while a
     # child the tool left behind sits suspended, and Ruby's Timeout can't
-    # interrupt the blocking Process.wait on macOS. So SIGKILL the whole
-    # process group and reap non-blockingly -- unconditional and bounded.
+    # interrupt the blocking Process.wait on macOS. So TERM the whole process
+    # group -- the '-' prefix signals the group, reaching forked children too,
+    # so nothing is orphaned -- and reap non-blockingly.
     def close
-      kill_group
+      terminate_group
       reap
     end
 
     private
 
-    # Waits for +pattern+ under a watchdog that SIGKILLs the shell's process
+    # Waits for +pattern+ under a watchdog that force-kills the shell's process
     # group after RUN_DEADLINE. Killing the shell closes the pty, so a blocked
     # read fails and we raise with the pty tail -- what the shell was stuck on.
     def await(pattern, context)
@@ -78,16 +79,27 @@ module Ready
       end
     end
 
-    # SIGKILL the shell's whole process group so its children (a stuck tool, a
-    # pager, the by client) die with it -- a lone kill of the shell pid would
-    # orphan them.
+    # TERM the shell's whole process group -- graceful teardown that still
+    # reaches forked children (the '-' prefix signals the group), so nothing
+    # is orphaned.
+    def terminate_group
+      signal_group("-TERM")
+    end
+
+    # The watchdog's last resort: an unconditional KILL a wedged tool cannot
+    # ignore, guaranteeing the pty closes and the blocked read unblocks. TERM
+    # is not enough here -- the tool is already stuck past the deadline.
     def kill_group
-      Process.kill("KILL", -Process.getpgid(@pid))
+      signal_group("-KILL")
+    end
+
+    def signal_group(signal)
+      Process.kill(signal, Process.getpgid(@pid))
     rescue Errno::ESRCH, Errno::EPERM, Errno::ECHILD
       nil
     end
 
-    # Poll with WNOHANG rather than a blocking wait: after SIGKILLing the group
+    # Poll with WNOHANG rather than a blocking wait: after signalling the group
     # the shell is reapable within milliseconds, and this can never block on a
     # wait that Ruby's Timeout is unable to interrupt.
     def reap

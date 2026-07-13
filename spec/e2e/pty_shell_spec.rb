@@ -19,7 +19,7 @@ RSpec.describe Ready::PtyShell, :e2e do
   end
 
   context "when a foreground child is left holding the pty" do
-    it "closes promptly by killing the process group instead of blocking" do
+    it "closes promptly by signalling the process group instead of blocking" do
       # `cat` with no args occupies the pty and would make a graceful `exit`
       # hang forever -- exactly the macOS cold-arm failure.
       shell.instance_variable_get(:@in).puts("cat")

@@ -56,7 +56,7 @@ module Ready
     end
 
     def teardown
-      kill_server
+      stop_server
       FileUtils.rm_rf(prefix)
     end
 
@@ -103,24 +103,24 @@ module Ready
       raise "no builds.zwc in #{prefix}\n#{@build_output}" unless (prefix / "builds.zwc").file?
     end
 
-    # Kill the by-server daemon and every worker it forked, without `by-server
+    # Stop the by-server daemon and every worker it forked, without `by-server
     # stop` (which can itself block). The daemon has no pidfile, but its argv
-    # carries the unique temp prefix, so pgrep finds it; SIGKILLing its whole
+    # carries the unique temp prefix, so pgrep finds it; TERMing its whole
     # process group reaps the workers too -- they setproctitle to the tool name
     # and so are invisible to a prefix search, but they share the daemon's
-    # group. TERM is not enough: by-server ignores it.
-    def kill_server
-      daemon_pids.each { |pid| kill_process_group(pid) }
+    # group, and the '-' prefix signals the group so none are orphaned.
+    def stop_server
+      daemon_pids.each { |pid| terminate_process_group(pid) }
     end
 
     def daemon_pids
       `pgrep -f #{Shellwords.escape(prefix.to_s)}`.split.map(&:to_i).reject { |pid| pid == Process.pid }
     end
 
-    def kill_process_group(pid)
+    def terminate_process_group(pid)
       group = Process.getpgid(pid)
       # Never signal our own group; fall back to the lone pid if it shares ours.
-      Process.kill("KILL", group == Process.getpgrp ? pid : -group)
+      group == Process.getpgrp ? Process.kill("TERM", pid) : Process.kill("-TERM", group)
     rescue Errno::ESRCH, Errno::EPERM
       nil
     end
