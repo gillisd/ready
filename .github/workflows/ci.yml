@@ -82,21 +82,11 @@ jobs:
         set +e
         gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/dispatch_spec.rb 2>&1
         echo "PROBE2_DISPATCH exit: $?"
-    - name: Probe 3a -- rake bench, ri TCPServer (ri pages its output)
+    - name: Probe 3 -- rake bench, ri, TRACED (breadcrumbs pinpoint the hang)
       run: |
         set +e
-        gtimeout -s KILL 90 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=2 BENCH_WARMUPS=1 2>&1
-        echo "PROBE3A_RI_PAGER exit: $?"
-    - name: Probe 3b -- rake bench, irb --version (does not page)
-      run: |
-        set +e
-        gtimeout -s KILL 90 bundle exec rake bench BENCH_EXE=irb BENCH_ARGS=--version BENCH_RUNS=2 BENCH_WARMUPS=1 2>&1
-        echo "PROBE3B_IRB exit: $?"
-    - name: Probe 3c -- rake bench, ri TCPServer with the pager neutralized
-      run: |
-        set +e
-        RI_PAGER=cat PAGER=cat GIT_PAGER=cat gtimeout -s KILL 90 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=2 BENCH_WARMUPS=1 2>&1
-        echo "PROBE3C_RI_NOPAGER exit: $?"
+        BENCH_TRACE=1 gtimeout -s KILL 75 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=1 BENCH_WARMUPS=0 2>&1
+        echo "PROBE3_RI_TRACED exit: $?"
     - name: Detect leaked processes
       if: always()
       run: |
