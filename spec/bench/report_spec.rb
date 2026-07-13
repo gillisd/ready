@@ -36,6 +36,10 @@ RSpec.describe Ready::Bench::Report do
     expect { report.render }.not_to output(/what it measures/).to_stdout
   end
 
+  it "prints a condensed slide summary of the cold layers" do
+    expect { report.render }.to output(/slide summary/).to_stdout
+  end
+
   context "when verbose" do
     subject(:report) do
       described_class.new(cold: arm_result(:cold, full: 200.0), hot: arm_result(:hot, full: 40.0),
