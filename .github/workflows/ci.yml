@@ -5,6 +5,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -43,3 +44,41 @@ jobs:
         bundler-cache: true
     - name: Run E2E specs
       run: bundle exec rake spec:e2e
+
+  # macOS is where the harness actually runs for users (zsh is the default
+  # shell, executables resolve through rbenv). This job reproduces the
+  # process-hang/leak reports on a real Mac and fails loudly if the harness
+  # leaves any by-server or sandbox process behind.
+  macos-e2e:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install rbenv + Ruby 4.0.1 (matches a real user's setup)
+      run: |
+        brew install rbenv ruby-build coreutils
+        rbenv install 4.0.1
+        rbenv global 4.0.1
+        echo "$HOME/.rbenv/shims" >> "$GITHUB_PATH"
+    - name: Bundle
+      run: |
+        gem install bundler
+        bundle install
+    - name: Snapshot processes before
+      run: ps -Ao pid,ppid,pgid,command | grep -Ei 'by-server|ready-e2e|zsh -f' | grep -v grep || echo "clean before"
+    - name: Run E2E specs (job timeout fails a true hang fast)
+      run: gtimeout --signal=KILL 900 bundle exec rake spec:e2e
+    - name: Run the real benchmark (what bin/bench runs), short
+      run: gtimeout --signal=KILL 400 bundle exec rake bench BENCH_RUNS=3 BENCH_WARMUPS=1 || echo "bench exited non-zero: $?"
+    - name: Detect leaked processes (the reported bug)
+      if: always()
+      run: |
+        echo "=== surviving zsh -f ==="; pgrep -fl 'zsh -f' || echo none
+        echo "=== surviving by-server ==="; pgrep -fl by-server || echo none
+        echo "=== surviving ready-e2e sandboxes ==="; pgrep -fl ready-e2e || echo none
+        leaked=$(pgrep -f 'by-server|ready-e2e|zsh -f -i' | grep -v $$ | wc -l | tr -d ' ')
+        echo "leaked process count: $leaked"
+        if [ "$leaked" != "0" ]; then
+          echo "::error::harness leaked $leaked process(es) -- the hang/leak bug reproduced"
+          exit 1
+        fi
