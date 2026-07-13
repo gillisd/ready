@@ -13,10 +13,10 @@ RSpec.describe Ready::Bench::Plot::Stacked do
     let(:ri_bar) { ("#" * 4) + ("." * 36) }
     let(:rake_bar) { ("#" * 10) + ("." * 10) }
 
-    it "stacks hot and eliminated into one bar per command, on a shared scale", :aggregate_failures do
+    it "stacks ready and eliminated into one bar per command, on a shared scale", :aggregate_failures do
       expect { plot.render }.to output(
-        a_string_including(ri_bar).and(including("50.0 hot")).and(including("500.0 cold"))
-          .and(including("(10.0x)")).and(including(rake_bar)).and(including("125.0 hot"))
+        a_string_including(ri_bar).and(including("50.0 ready")).and(including("500.0 cold"))
+          .and(including("(10.0x)")).and(including(rake_bar)).and(including("125.0 ready"))
           .and(including("(2.0x)")),
       ).to_stdout
     end

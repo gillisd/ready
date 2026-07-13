@@ -2,12 +2,12 @@ module Ready
   module Bench
     module Plot
       ##
-      # One bar per command on a shared scale, hot and cold stacked into a
-      # single line: the leading segment is what you still pay hot, the rest
-      # is what ready eliminates -- together, the cold total.
+      # One bar per command on a shared scale: the leading segment is what you
+      # still pay with ready, the rest is what ready eliminates -- together, the
+      # cold total.
       class Stacked
         WIDTH = 40
-        HOT_CELL = "#".freeze
+        READY_CELL = "#".freeze
         ELIMINATED_CELL = ".".freeze
 
         def initialize(comparisons)
@@ -15,14 +15,14 @@ module Ready
         end
 
         def render
-          puts "full startup (ms) -- #{HOT_CELL} hot, #{ELIMINATED_CELL} eliminated by ready"
+          puts "full startup (ms) -- #{READY_CELL} ready, #{ELIMINATED_CELL} eliminated by ready"
           @comparisons.each { render_bar(it) }
         end
 
         private
 
         # Cells per millisecond, sized so the slowest measurement of either arm
-        # spans WIDTH -- so a regression (hot > cold) can never overflow.
+        # spans WIDTH -- so a regression (ready slower than cold) can't overflow.
         def scale
           @scale ||= WIDTH / @comparisons.flat_map { [it.cold_milliseconds, it.hot_milliseconds] }.max
         end
@@ -35,17 +35,17 @@ module Ready
 
         def render_bar(comparison)
           row_format = "%<command>-#{command_width}s %<bar>-#{WIDTH}s " \
-                       "%<hot>7.1f hot / %<cold>7.1f cold  (%<speedup>.1fx)"
+                       "%<ready>7.1f ready / %<cold>7.1f cold  (%<speedup>.1fx)"
           puts format(row_format,
                       command: comparison.command, bar: bar_for(comparison),
-                      hot: comparison.hot_milliseconds, cold: comparison.cold_milliseconds,
+                      ready: comparison.hot_milliseconds, cold: comparison.cold_milliseconds,
                       speedup: comparison.speedup)
         end
 
         def bar_for(comparison)
-          hot_cells = [(comparison.hot_milliseconds * scale).round, 1].max
-          cold_cells = [(comparison.cold_milliseconds * scale).round, hot_cells].max
-          (HOT_CELL * hot_cells) + (ELIMINATED_CELL * (cold_cells - hot_cells))
+          ready_cells = [(comparison.hot_milliseconds * scale).round, 1].max
+          cold_cells = [(comparison.cold_milliseconds * scale).round, ready_cells].max
+          (READY_CELL * ready_cells) + (ELIMINATED_CELL * (cold_cells - ready_cells))
         end
       end
     end
