@@ -13,7 +13,7 @@ module Ready
         new(label: :shell, opening_mark: :harness_start, closing_mark: :command_start,
             summary: :minimum,
             description: "the shell starting the command -- cold fork/execs the shim found on " \
-                         "PATH, hot calls the ready_<tool> function (no fork, no exec)"),
+                         "PATH, ready calls the ready_<tool> function (no fork, no exec)"),
         new(label: :launch, opening_mark: :command_start, closing_mark: :ruby_up,
             summary: :minimum, description: "(cold only) Ruby interpreter boot, rubygems disabled"),
         new(label: :rubygems, opening_mark: :ruby_up, closing_mark: :rubygems_ready,
@@ -26,10 +26,10 @@ module Ready
             summary: :median, description: "(cold only) interpreter exit and process reap, back to the shell"),
         new(label: :dispatch_overhead, opening_mark: :command_start, closing_mark: :server_entry,
             summary: :minimum,
-            description: "(hot only) by client boot (a real Ruby process, the floor), socket " \
+            description: "(ready only) by client boot (a real Ruby process, the floor), socket " \
                          "round-trip, server fork"),
         new(label: :server_tool_run, opening_mark: :server_entry, closing_mark: :harness_end,
-            summary: :median, description: "(hot only) the preloaded tool executing inside the warm server"),
+            summary: :median, description: "(ready only) the preloaded tool executing inside the warm server"),
         new(label: :full, opening_mark: :harness_start, closing_mark: :harness_end,
             summary: :minimum, description: "everything between the harness clock reads; what a user feels"),
       ].freeze
