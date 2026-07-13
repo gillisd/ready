@@ -18,15 +18,15 @@ RSpec.describe Ready::PtyShell, :e2e do
     end
   end
 
-  context "when the foreground command swallows the exit keystroke" do
-    it "force-kills the shell instead of blocking forever" do
-      # Bypasses run's marker sync on purpose: cat occupies the pty and eats
-      # every subsequent line, exactly like an interactive tool under bench.
+  context "when a foreground child is left holding the pty" do
+    it "closes promptly by killing the process group instead of blocking" do
+      # `cat` with no args occupies the pty and would make a graceful `exit`
+      # hang forever -- exactly the macOS cold-arm failure.
       shell.instance_variable_get(:@in).puts("cat")
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       shell.close
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-      expect(elapsed).to be < (described_class::CLOSE_DEADLINE + 3)
+      expect(elapsed).to be < 3
     end
   end
 end
