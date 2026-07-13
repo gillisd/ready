@@ -69,21 +69,34 @@ jobs:
       run: |
         gem install bundler
         bundle install
-    # Each e2e spec runs alone under a short timeout so a hang is pinned to one
-    # spec (gtimeout exit 124) instead of one opaque 15-minute black box. The
-    # `; echo` keeps a hung probe from failing the step, so every probe runs.
-    - name: Probe 1 -- basic pty marker sync (no server, no rbenv)
+    # set +e so a gtimeout-killed probe (exit 137) does not abort the step
+    # under bash -e -- otherwise the failing probe skips every later probe.
+    # Each probe runs alone so a hang is pinned to it. 0 = passed, 137 = hung.
+    - name: Probe 1 -- basic pty marker sync
       run: |
-        gtimeout -s KILL 90 env READY_E2E=1 bundle exec rspec spec/e2e/pty_shell_spec.rb 2>&1; echo "PTY_SHELL exit: $?"
+        set +e
+        gtimeout -s KILL 90 env READY_E2E=1 bundle exec rspec spec/e2e/pty_shell_spec.rb 2>&1
+        echo "PROBE1_PTY exit: $?"
     - name: Probe 2 -- hot dispatch through the plugin + by-server
       run: |
-        gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/dispatch_spec.rb 2>&1; echo "DISPATCH exit: $?"
-    - name: Probe 3a -- benchmark as-is (reproduces the hang)
+        set +e
+        gtimeout -s KILL 180 env READY_E2E=1 bundle exec rspec spec/e2e/dispatch_spec.rb 2>&1
+        echo "PROBE2_DISPATCH exit: $?"
+    - name: Probe 3a -- rake bench, ri TCPServer (ri pages its output)
       run: |
-        gtimeout -s KILL 90 env READY_E2E=1 bundle exec rspec spec/e2e/benchmark_spec.rb 2>&1; echo "BENCH_WITH_PAGER exit: $?"
-    - name: Probe 3b -- benchmark with the pager neutralized (hypothesis test)
+        set +e
+        gtimeout -s KILL 90 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=2 BENCH_WARMUPS=1 2>&1
+        echo "PROBE3A_RI_PAGER exit: $?"
+    - name: Probe 3b -- rake bench, irb --version (does not page)
       run: |
-        gtimeout -s KILL 120 env READY_E2E=1 RI_PAGER=cat PAGER=cat bundle exec rspec spec/e2e/benchmark_spec.rb 2>&1; echo "BENCH_NO_PAGER exit: $?"
+        set +e
+        gtimeout -s KILL 90 bundle exec rake bench BENCH_EXE=irb BENCH_ARGS=--version BENCH_RUNS=2 BENCH_WARMUPS=1 2>&1
+        echo "PROBE3B_IRB exit: $?"
+    - name: Probe 3c -- rake bench, ri TCPServer with the pager neutralized
+      run: |
+        set +e
+        RI_PAGER=cat PAGER=cat GIT_PAGER=cat gtimeout -s KILL 90 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=2 BENCH_WARMUPS=1 2>&1
+        echo "PROBE3C_RI_NOPAGER exit: $?"
     - name: Detect leaked processes
       if: always()
       run: |
