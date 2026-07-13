@@ -1,3 +1,5 @@
+require "rbconfig"
+
 module Ready
   module Bench
     ##
@@ -18,13 +20,23 @@ module Ready
         /^(\s*)load Gem\.activate_bin_path\((.*)\)/,
       ].freeze
 
-      def self.for_executable(executable_name)
-        stub_path = `rbenv which #{executable_name}`.strip
-        raise "rbenv could not resolve #{executable_name.inspect} to a rubygems stub" if stub_path.empty?
+      def self.for_executable(executable_name, rbenv: true)
+        stub_path = resolve_stub_path(executable_name, rbenv:)
+        raise "could not resolve #{executable_name.inspect} to a rubygems stub" unless stub_path&.file?
 
-        stub_source = Pathname(stub_path).read
-        new(stub_source)
+        new(stub_path.read)
       end
+
+      # rbenv resolves an executable to the rubygems stub in the active Ruby's
+      # bindir, bypassing its shims. Without rbenv that same stub is just
+      # <ruby bindir>/<name> -- exactly what `rbenv which` returns anyway.
+      def self.resolve_stub_path(executable_name, rbenv:)
+        return Pathname(RbConfig::CONFIG["bindir"]) / executable_name unless rbenv
+
+        resolved = `rbenv which #{executable_name}`.strip
+        Pathname(resolved) unless resolved.empty?
+      end
+      private_class_method :resolve_stub_path
 
       def initialize(source)
         @source = source
