@@ -15,12 +15,12 @@ module Ready
     Result = Data.define(:output, :wall_clock_seconds)
 
     PROMPT = "@@P> ".freeze
-    CHAR_TIMEOUT = 30
-    # Hard ceiling on any single wait. Ruby's Timeout cannot reliably interrupt
-    # a blocking pty read (notably on macOS), so a watchdog thread enforces the
-    # deadline by SIGKILLing the shell's whole process group -- which closes the
-    # pty and unblocks the read at the OS level. Nothing here can hang unbounded.
-    RUN_DEADLINE = 45
+    # IO#expect's timeout is the total seconds to wait for the pattern, so it
+    # bounds a hung shell on its own -- no outside watchdog needed. Generous:
+    # benchmarked commands finish in well under a second, so this only trips on
+    # a genuinely stuck shell (and is roomy enough not to false-alarm on a
+    # loaded CI box).
+    EXPECT_TIMEOUT = 30
 
     def initialize(env = {})
       assignments = env.map { |k, v| "#{k}=#{Shellwords.escape(v.to_s)}" }.join(" ")
@@ -28,10 +28,9 @@ module Ready
       @out, @in, @pid = PTY.spawn(command)
       @seq = 0
       send_line("PS1='@@''P> '")
-      await(PROMPT, "shell startup")
+      expect!(PROMPT)
     rescue StandardError
-      terminate_group
-      reap
+      close
       raise
     end
 
@@ -42,73 +41,26 @@ module Ready
       marker = "DONE#{@seq}"
       started_at = monotonic_clock
       send_line("#{cmd}; print #{marker[0, 2]}''#{marker[2..]}")
-      output = await(marker, "run #{cmd.inspect}")
+      output = expect!(marker)
       Result.new(output:, wall_clock_seconds: monotonic_clock - started_at)
     end
 
-    # A graceful `exit` can hang: an interactive zsh refuses to exit while a
-    # child the tool left behind sits suspended, and Ruby's Timeout can't
-    # interrupt the blocking Process.wait on macOS. So TERM the whole process
-    # group -- the '-' prefix signals the group, reaching forked children too,
-    # so nothing is orphaned -- and reap non-blockingly.
+    # TERM the shell's whole process group (the '-' prefix signals the group,
+    # reaching forked children so none are orphaned), then hand the shell to
+    # Process.detach, which reaps it in a background thread -- never blocking on
+    # a wait, never leaving a zombie.
     def close
+      return unless @pid
+
       terminate_group
-      reap
+      Process.detach(@pid)
     end
 
     private
 
-    # Waits for +pattern+ under a watchdog that force-kills the shell's process
-    # group after RUN_DEADLINE. Killing the shell closes the pty, so a blocked
-    # read fails and we raise with the pty tail -- what the shell was stuck on.
-    def await(pattern, context)
-      timed_out = false
-      watchdog = watchdog_thread { timed_out = true }
-      expect!(pattern)
-    rescue StandardError => e
-      raise(timed_out ? "timed out during #{context}; pty tail: #{tail.inspect}" : e)
-    ensure
-      watchdog&.kill
-    end
-
-    def watchdog_thread
-      Thread.new do
-        sleep(RUN_DEADLINE)
-        yield
-        kill_group
-      end
-    end
-
-    # TERM the shell's whole process group -- graceful teardown that still
-    # reaches forked children (the '-' prefix signals the group), so nothing
-    # is orphaned.
     def terminate_group
-      signal_group("-TERM")
-    end
-
-    # The watchdog's last resort: an unconditional KILL a wedged tool cannot
-    # ignore, guaranteeing the pty closes and the blocked read unblocks. TERM
-    # is not enough here -- the tool is already stuck past the deadline.
-    def kill_group
-      signal_group("-KILL")
-    end
-
-    def signal_group(signal)
-      Process.kill(signal, Process.getpgid(@pid))
+      Process.kill("-TERM", Process.getpgid(@pid))
     rescue Errno::ESRCH, Errno::EPERM, Errno::ECHILD
-      nil
-    end
-
-    # Poll with WNOHANG rather than a blocking wait: after signalling the group
-    # the shell is reapable within milliseconds, and this can never block on a
-    # wait that Ruby's Timeout is unable to interrupt.
-    def reap
-      20.times do
-        return if Process.wait(@pid, Process::WNOHANG)
-
-        sleep(0.05)
-      end
-    rescue Errno::ECHILD, Errno::ESRCH
       nil
     end
 
@@ -121,12 +73,12 @@ module Ready
     end
 
     def expect!(pattern)
-      result = @out.expect(pattern, CHAR_TIMEOUT)
-      raise "timeout waiting #{pattern.inspect}, tail: #{tail.inspect}" unless result
+      result = @out.expect(pattern, EXPECT_TIMEOUT)
+      raise "no #{pattern.inspect} within #{EXPECT_TIMEOUT}s; pty tail: #{tail.inspect}" unless result
 
       result.first
     rescue Errno::EIO
-      raise "pty closed waiting #{pattern.inspect}, tail: #{tail.inspect}"
+      raise "pty closed waiting for #{pattern.inspect}; pty tail: #{tail.inspect}"
     end
 
     def tail
