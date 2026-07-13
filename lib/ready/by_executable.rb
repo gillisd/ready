@@ -44,8 +44,8 @@ module Ready
 
     def to_alias
       command_args
-        .then { |it| Shellwords.join(it) }
-        .then { |it| "#{it} \"${@}\"" }
+        .then { Shellwords.join(it) }
+        .then { "#{it} \"${@}\"" }
     end
   end
 end

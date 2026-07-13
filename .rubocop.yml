@@ -17,7 +17,10 @@ plugins:
 
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 4.0
+  # Lint at the gem's supported floor (ready.gemspec's required_ruby_version),
+  # which CI also exercises -- not the 4.0.1 dev pin -- so accidental
+  # 4.0-only syntax is caught rather than shipped to 3.4 users.
+  TargetRubyVersion: 3.4
   Exclude:
     # Stock bundler scripts; bin/bench is ours and stays linted.
     - bin/console
@@ -26,6 +29,9 @@ AllCops:
     # Vendored read-only reference copy of an external gem; not this project's
     # code (it is also gitignored, so CI never sees it).
     - references/**/*
+    # Standalone runtime helper scripts -- a doc formatter and the rdoc `ri`
+    # patch -- with their own conventions, not the gem's authored library code.
+    - extra/**/*
     - lib/core_ext/**/*
     - rakelib/project.rb
     - rakelib/project_version.rb

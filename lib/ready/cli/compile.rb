@@ -6,14 +6,13 @@ module Ready
     # Compiles ready stubs and prints them to stdout, or compiles everything via
     # rake:
     #
-    #   * `ready compile all`       — compile every stub (`rake ready:compile`)
-    #   * `ready compile by`        — the persistent `by` client alias
-    #   * `ready compile NAME ...`  — a zsh function stub per CLI name
+    # * `ready compile all`: compile every stub (`rake ready:compile`)
+    # * `ready compile by`: the persistent `by` client alias
+    # * `ready compile NAME ...`: a zsh function stub per CLI name
     #
     # The `--rubygems`/`--yjit` flags only apply to `by`; `--environment` only
     # applies to named CLIs.
     class Compile < CommandKit::Command
-
       include RakeCommand
 
       usage "[options] {all | by | NAME [NAME ...]}"
@@ -58,7 +57,7 @@ module Ready
       # from {#options}, which command_kit populates for us.
       #
       def initialize(**kwargs)
-        super(**kwargs)
+        super
 
         @environment = {}
       end
@@ -105,7 +104,6 @@ module Ready
         print_error "#{reserved.join(", ")} cannot be combined with other names"
         exit(1)
       end
-
     end
   end
 end

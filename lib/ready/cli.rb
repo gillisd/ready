@@ -10,7 +10,6 @@ module Ready
   # class wires the sub-commands together with command_kit; each sub-command
   # lives in its own file under `cli/`.
   class CLI
-
     include CommandKit::Commands
     include CommandKit::Options::Version
 
@@ -21,6 +20,5 @@ module Ready
     command Up
     command Compile
     command Clobber
-
   end
 end
