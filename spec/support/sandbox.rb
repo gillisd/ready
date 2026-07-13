@@ -49,7 +49,7 @@ module Ready
     end
 
     def teardown
-      stop_server
+      kill_server
       FileUtils.rm_rf(prefix)
     end
 
@@ -96,23 +96,26 @@ module Ready
       raise "no builds.zwc in #{prefix}\n#{@build_output}" unless (prefix / "builds.zwc").file?
     end
 
-    def stop_server
-      if sock_path.socket?
-        system({ "BY_SOCKET" => sock_path.to_s }, "by-server", "stop",
-               out: File::NULL, err: File::NULL)
-      end
-      reap_orphans
+    # Kill the by-server daemon and every worker it forked, without `by-server
+    # stop` (which can itself block). The daemon has no pidfile, but its argv
+    # carries the unique temp prefix, so pgrep finds it; SIGKILLing its whole
+    # process group reaps the workers too -- they setproctitle to the tool name
+    # and so are invisible to a prefix search, but they share the daemon's
+    # group. TERM is not enough: by-server ignores it.
+    def kill_server
+      daemon_pids.each { |pid| kill_process_group(pid) }
     end
 
-    # No pidfile exists; the daemon is found by its argv, which contains the
-    # unique temp prefix (<prefix>/extra.rb). Excludes self defensively.
-    def reap_orphans
-      pids = `pgrep -f #{Shellwords.escape(prefix.to_s)}`.split.map(&:to_i)
-      pids.reject { |pid| pid == Process.pid }.each do |pid|
-        Process.kill("TERM", pid)
-      rescue Errno::ESRCH
-        nil
-      end
+    def daemon_pids
+      `pgrep -f #{Shellwords.escape(prefix.to_s)}`.split.map(&:to_i).reject { |pid| pid == Process.pid }
+    end
+
+    def kill_process_group(pid)
+      group = Process.getpgid(pid)
+      # Never signal our own group; fall back to the lone pid if it shares ours.
+      Process.kill("KILL", group == Process.getpgrp ? pid : -group)
+    rescue Errno::ESRCH, Errno::EPERM
+      nil
     end
   end
 end
