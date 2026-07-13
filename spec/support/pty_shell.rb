@@ -1,7 +1,6 @@
 require "pty"
 require "expect"
 require "shellwords"
-require "timeout"
 
 module Ready
   ##
@@ -22,7 +21,6 @@ module Ready
     # deadline by SIGKILLing the shell's whole process group -- which closes the
     # pty and unblocks the read at the OS level. Nothing here can hang unbounded.
     RUN_DEADLINE = 45
-    CLOSE_DEADLINE = 5
 
     def initialize(env = {})
       assignments = env.map { |k, v| "#{k}=#{Shellwords.escape(v.to_s)}" }.join(" ")
@@ -48,14 +46,12 @@ module Ready
       Result.new(output:, wall_clock_seconds: monotonic_clock - started_at)
     end
 
+    # A graceful `exit` can hang: an interactive zsh refuses to exit while a
+    # child the tool left behind sits suspended, and Ruby's Timeout can't
+    # interrupt the blocking Process.wait on macOS. So SIGKILL the whole
+    # process group and reap non-blockingly -- unconditional and bounded.
     def close
-      send_line("exit")
-      Timeout.timeout(CLOSE_DEADLINE) { Process.wait(@pid) }
-    rescue Timeout::Error
       kill_group
-    rescue Errno::ECHILD, Errno::EIO
-      nil
-    ensure
       reap
     end
 
@@ -91,8 +87,15 @@ module Ready
       nil
     end
 
+    # Poll with WNOHANG rather than a blocking wait: after SIGKILLing the group
+    # the shell is reapable within milliseconds, and this can never block on a
+    # wait that Ruby's Timeout is unable to interrupt.
     def reap
-      Process.wait(@pid)
+      20.times do
+        return if Process.wait(@pid, Process::WNOHANG)
+
+        sleep(0.05)
+      end
     rescue Errno::ECHILD, Errno::ESRCH
       nil
     end
