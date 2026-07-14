@@ -23,6 +23,6 @@ ready_<%= name %> () {
     __ready_debug "Sanitized RUBYOPT: ${(kv)parameters[RUBYOPT]}"
   fi
 
-  <%= env.map { |pair| pair.join("=")  }.join(" ") %> \
-    ready_by -e <%= ruby.shellescape %> "$@"
+  <%= env.map { |pair| pair.join("=")  }.join(" ") %> ready_by \
+    -e <%= ruby.shellescape %> "$@"
 }
