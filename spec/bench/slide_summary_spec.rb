@@ -30,12 +30,17 @@ RSpec.describe Ready::Bench::SlideSummary do
     expect(milliseconds_for("the tool")).to eq(19)
   end
 
-  it "folds the interpreter boot into the rubygems layer" do
-    expect(milliseconds_for("rubygems")).to eq(45)
+  it "keeps the ruby vm boot as its own layer, separate from rubygems", :aggregate_failures do
+    # both arms boot a VM; only cold loads rubygems -- folding them would imply
+    # ready eliminates the boot, which it does not.
+    expect(milliseconds_for("ruby vm boot")).to eq(40)
+    expect(milliseconds_for("rubygems")).to eq(5)
   end
 
   it "slots the rbenv shim after the shell only when its overhead was measured", :aggregate_failures do
-    expect(summary.lines.map(&:label)).to eq(["shell", "rbenv shim", "rubygems", "activate deps", "the tool"])
+    expect(summary.lines.map(&:label)).to eq(
+      ["shell", "rbenv shim", "ruby vm boot", "rubygems", "activate deps", "the tool"],
+    )
     expect(milliseconds_for("rbenv shim")).to eq(40)
 
     without_shim = described_class.new(cold:, rbenv_shim_overhead: nil)
@@ -49,7 +54,8 @@ RSpec.describe Ready::Bench::SlideSummary do
 
   it "renders aligned label/millisecond columns for a slide", :aggregate_failures do
     rendered = summary.render
-    expect(rendered).to match(/rubygems\s+45 ms/)
+    expect(rendered).to match(/ruby vm boot\s+40 ms/)
+    expect(rendered).to match(/rubygems\s+5 ms/)
     expect(rendered).to match(/total\s+~148 ms/)
   end
 
@@ -64,7 +70,8 @@ RSpec.describe Ready::Bench::SlideSummary do
     end
 
     it "takes each layer's minimum, not its median", :aggregate_failures do
-      expect(milliseconds_for("rubygems")).to eq(55)      # min launch 10 + min rubygems 45
+      expect(milliseconds_for("ruby vm boot")).to eq(10)  # min launch
+      expect(milliseconds_for("rubygems")).to eq(45)      # min rubygems
       expect(milliseconds_for("activate deps")).to eq(33) # min activation
       expect(milliseconds_for("the tool")).to eq(80)      # min tool_run
     end
