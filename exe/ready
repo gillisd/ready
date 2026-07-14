@@ -1,15 +1,20 @@
 #!/usr/bin/env ruby
 
+# Use Bundler when developing against a checkout (a Gemfile is present in the
+# gem root), but stay bundler-free in production so an installed `ready` gem
+# resolves its dependencies through RubyGems. Requiring bundler/setup directly
+# (rather than invoking via `bundle exec`) means production installs — which
+# ship no Gemfile (see the gemspec's file list) — run without Bundler at all.
+# In a dev checkout Bundler is active and, as expected, propagates
+# `-rbundler/setup` in RUBYOPT to child processes; the generated zsh stubs strip
+# that at runtime (see fn.zsh.erb).
+gemfile = File.expand_path("../Gemfile", __dir__)
+
+if File.exist?(gemfile)
+  ENV["BUNDLE_GEMFILE"] ||= gemfile
+  require "bundler/setup"
+end
+
 require_relative "../lib/ready"
 
-result = (
-  case ARGV
-  in ["by", *rest] then Ready::ByParser.parse(*rest).to_alias
-  in [/gems?/, *rest] then Ready::GemParser.parse(*rest)
-  else
-    puts "Usage: #{$0} [by|gem] [options]"
-    exit 1
-  end
-)
-
-print result
+Ready::CLI.start

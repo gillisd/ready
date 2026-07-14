@@ -8,8 +8,18 @@ module Ready
     attr_reader :config, :build_dir, :path
 
     def self.open(path, build_dir:)
-      config = YAML.parse_file(path.to_s).to_ruby
-      new config, build_dir:, path: Pathname(path)
+      path = Pathname(path)
+      # A missing, empty, or null readyfile is not an error: it simply declares
+      # no gems or executables. YAML.parse_file returns false for an empty file,
+      # and a document such as "---" parses to nil.
+      document = (YAML.parse_file(path.to_s) if path.exist?)
+      config = (document.to_ruby if document) || {}
+
+      unless config.is_a?(Hash)
+        raise Error, "#{path}: readyfile must be a YAML mapping of gems:/executables:, got #{config.class}"
+      end
+
+      new config, build_dir:, path:
     end
 
     def initialize(config, build_dir:, path:)

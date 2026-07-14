@@ -10,7 +10,7 @@ module Ready
     end
 
     def prefix
-      fetched = fetch_env :ready_prefix, default: "/tmp/ready"
+      fetched = fetch_env :prefix, default: "/tmp/ready"
 
       Pathname(fetched).expand_path
     end
