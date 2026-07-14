@@ -98,8 +98,8 @@ namespace :ready do
 
   extra = READY_PREFIX / "extra.rb"
 
-  CLEAN.include build_tempdir
-  CLOBBER.include READY_BUILD_DIR.parent / "**/*"
+  CLEAN.include FileList[build_tempdir, READY_BUILD_DIR]
+  CLOBBER.include FileList[READY_BUILD_DIR.parent / "**/*"]
 
   env = {
     "JRUBY_OPTS" => "--dev -J--enable-native-access=ALL-UNNAMED",
