@@ -1,4 +1,5 @@
 require "command_kit/commands"
+require "command_kit/options/version"
 
 module Ready
   ##
@@ -9,15 +10,15 @@ module Ready
   # class wires the sub-commands together with command_kit; each sub-command
   # lives in its own file under `cli/`.
   class CLI
-
     include CommandKit::Commands
+    include CommandKit::Options::Version
 
     command_name "ready"
+    version Ready::VERSION
 
     command Init
     command Up
     command Compile
     command Clobber
-
   end
 end

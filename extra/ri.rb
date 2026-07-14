@@ -7,7 +7,7 @@ ready_defaults = {
   use_system: true,
   use_gems: true,
   use_stdout: true,
-  formatter: RDoc::Markup::ToMarkdown,
+  formatter: RDoc::Markup::ToAnsi
 }
 
 $ri_driver = RDoc::RI::Driver.new

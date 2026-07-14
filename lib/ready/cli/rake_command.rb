@@ -1,3 +1,4 @@
+require "English"
 require "rbconfig"
 
 module Ready
@@ -13,7 +14,6 @@ module Ready
     # spawns via `RUBYOPT`); in production there is no Gemfile, so the build runs
     # bundler-free and resolves the installed gem through RubyGems.
     module RakeCommand
-
       ##
       # Runs the given rake task(s) in {Ready.root} and exits non-zero if rake
       # fails.
@@ -25,9 +25,8 @@ module Ready
 
         # Propagate rake's own exit status where we can; fall back to 1 if the
         # process could not be spawned at all ($? unset).
-        exit($?&.exitstatus || 1)
+        exit($CHILD_STATUS&.exitstatus || 1)
       end
-
     end
   end
 end

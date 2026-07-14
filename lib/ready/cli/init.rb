@@ -9,7 +9,6 @@ module Ready
     #
     #     eval "$(ready init)"      # or paste the line into ~/.zshrc
     class Init < CommandKit::Command
-
       # The bundled zsh plugin entry point, resolved relative to the gem.
       PLUGIN_PATH = Ready.root / "zsh" / "ready" / "ready.plugin.zsh"
 
@@ -26,7 +25,6 @@ module Ready
 
         puts "source #{PLUGIN_PATH}"
       end
-
     end
   end
 end

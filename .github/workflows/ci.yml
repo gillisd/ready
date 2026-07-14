@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, e2e-rspec]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,3 +27,72 @@ jobs:
       run: bundle exec rake spec
     - name: Run RuboCop
       run: bundle exec rake rubocop
+
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby-version: ['3.4.7', '4.0.1']
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install zsh
+      run: sudo apt-get update && sudo apt-get install -y zsh
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler-cache: true
+    # The benchmark deliberately runs two scrubbed, unbundled subprocesses that
+    # resolve gems the way a real (non-bundler) install does: `ready up` spawns
+    # by-server, and render_production_source does `require "ready"` (which
+    # needs zeitwerk). With bundler-cache's path install those gems live only in
+    # the bundle, so the scrubbed processes can't see them. Put ready's runtime
+    # deps on the base PATH at their locked versions -- where rbenv has them
+    # locally and on the macos-e2e job.
+    - name: Install ready's runtime deps on the base PATH
+      run: gem install by:1.1.0 zeitwerk:2.8.2
+    - name: Run E2E specs
+      run: bundle exec rake spec:e2e
+
+  # macOS is where the harness actually runs for users (zsh is the default
+  # shell, executables resolve through rbenv). This job reproduces the
+  # process-hang/leak reports on a real Mac and fails loudly if the harness
+  # leaves any by-server or sandbox process behind.
+  macos-e2e:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+    - name: Cache the rbenv-built Ruby (first run compiles it, later runs restore)
+      uses: actions/cache@v4
+      with:
+        path: ~/.rbenv/versions
+        key: rbenv-versions-4.0.1-${{ runner.os }}
+    - name: Install rbenv + Ruby 4.0.1 (matches a real user's setup)
+      run: |
+        brew install rbenv ruby-build coreutils
+        rbenv versions --bare | grep -qx 4.0.1 || rbenv install 4.0.1
+        rbenv global 4.0.1
+        echo "$HOME/.rbenv/shims" >> "$GITHUB_PATH"
+    - name: Bundle
+      run: |
+        gem install bundler
+        bundle install
+    # A hard gtimeout wraps each step so a regression hangs the job for
+    # seconds, not the 6h GitHub ceiling. The whole point of this job is that
+    # the harness must run to completion on macOS (default zsh, rbenv).
+    - name: Run the e2e suite
+      run: gtimeout -s KILL 300 bundle exec rake spec:e2e
+    - name: Run the real benchmark (what bin/bench runs)
+      run: gtimeout -s KILL 200 bundle exec rake bench BENCH_EXE=ri BENCH_ARGS=TCPServer BENCH_RUNS=2 BENCH_WARMUPS=1
+    - name: Fail if the harness leaked any process
+      if: always()
+      run: |
+        pgrep -fl by-server || echo "no by-server"
+        pgrep -fl ready-e2e || echo "no ready-e2e"
+        leaked=$(pgrep -f 'by-server|ready-e2e' | wc -l | tr -d ' ')
+        echo "leaked process count: $leaked"
+        if [ "$leaked" != "0" ]; then
+          echo "::error::harness leaked $leaked process(es)"
+          exit 1
+        fi

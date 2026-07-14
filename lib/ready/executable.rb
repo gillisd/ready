@@ -1,5 +1,4 @@
 require "stringio"
-require "pathname"
 
 module Ready
   ##
@@ -8,18 +7,30 @@ module Ready
   class Executable
     attr_reader :name, :is_gem
 
+    # Executables whose gem name differs from the command, so `path` isn't a
+    # wall of one-off special cases.
+    GEM_BIN_OVERRIDES = {
+      "bundle" => %w[bundler bundle],
+      "ri" => %w[rdoc ri],
+      "yri" => %w[yard yri],
+      "rstore" => %w[reversal-store rstore],
+      "rougify" => %w[rouge rougify],
+    }.freeze
+
+    SHEBANG_LINE = /^.*#!.*\n/
+    REQUIRE_RELATIVE = /(require_relative(?:\(| )\s*[\x27"]([^\s\x27"]+)[\x27"]\)?)/
+
     def initialize(name)
       @name = name
       @is_gem = !File.exist?(name)
     end
 
+    # "bin/<name>" when the executable sits directly in a bin directory, else
+    # the bare basename. Anchored on the parent directory's name so a path like
+    # /home/robin/foo doesn't match "bin" as a substring.
     def convert_path_to_bin(path)
       pathname = Pathname(path)
-      if /bin/.match?(pathname.dirname.to_s)
-        "bin/#{pathname.basename}"
-      else
-        pathname.basename
-      end
+      pathname.dirname.basename.to_s == "bin" ? "bin/#{pathname.basename}" : pathname.basename
     end
 
     def render
@@ -35,60 +46,49 @@ module Ready
     end
 
     def path
-      unless @is_gem
-        if @name.to_s.include? "exe"
-          @path ||= @name
-          @name = @name.split("/").last
-          return @path
-        end
-        @path ||= convert_path_to_bin(@name)
-        return @path
-      end
-
-      return Gem.bin_path("bundler", "bundle") if @name == "bundle"
-      return Gem.bin_path("rdoc", "ri") if @name == "ri"
-      return Gem.bin_path("yard", "yri") if @name == "yri"
-      return Gem.bin_path("reversal-store", "rstore") if @name == "rstore"
-      return Gem.bin_path("rouge", "rougify") if @name == "rougify"
-      return `rbenv which gem`.chomp if @name == "gem"
-
-      @path ||= @is_gem ? gem_path : system_path
-      @path
+      @path ||= @is_gem ? gem_executable_path : on_disk_path
     end
 
     def source
       raise "No executable found for '#{@name}'" if path.nil?
 
-      clean = File.read(path)
-                  &.gsub(/^.*#!.*\n/, "")
-                  &.strip
-                  &.then { StringIO.new it }
-
-      @source ||= if clean.string.include?("require_relative")
-                    string = clean.string
-                    matches = string.scan(/(require_relative(?:\(| )\s*[\x27"]([^\s\x27"]+)[\x27"]\)?)/)
-                    matches.each do |match, relpath|
-                      absolute_path = File.expand_path(relpath, File.dirname(path))
-                      replacement = match.dup
-                      replacement.gsub!("require_relative", "require")
-                      replacement.gsub!(relpath, absolute_path)
-                      string.gsub!(match, replacement)
-                    end
-                    string
-                  else
-                    clean.string
-                  end
+      @source ||= rewrite_require_relative(File.read(path).gsub(SHEBANG_LINE, "").strip)
     end
 
     private
 
-    def gem_path
-      Gem.bin_path(@name, @name)
+    def on_disk_path
+      if @name.to_s.include?("exe")
+        resolved = @name
+        @name = @name.split("/").last
+        return resolved
+      end
+      convert_path_to_bin(@name)
     end
 
-    def system_path
-      rbenv_path = `rbenv which #{@name} 2>/dev/null`.strip
-      rbenv_path.empty? ? nil : rbenv_path
+    def gem_executable_path
+      override = GEM_BIN_OVERRIDES[@name]
+      return Gem.bin_path(*override) if override
+      return `rbenv which gem`.chomp if @name == "gem"
+
+      gem_path
+    end
+
+    # Rewrites `require_relative "x"` to an absolute `require`, so the source
+    # can be eval'd by the persistent server outside its original directory.
+    def rewrite_require_relative(code)
+      return code unless code.include?("require_relative")
+
+      code.scan(REQUIRE_RELATIVE).each do |statement, relpath|
+        absolute = (Pathname(path).dirname / relpath).expand_path.to_s
+        rewritten = statement.gsub("require_relative", "require").gsub(relpath, absolute)
+        code = code.gsub(statement, rewritten)
+      end
+      code
+    end
+
+    def gem_path
+      Gem.bin_path(@name, @name)
     end
   end
 end

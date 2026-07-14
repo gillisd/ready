@@ -1,6 +1,6 @@
 RSpec.describe Ready::ByExecutable do
   describe "#to_alias" do
-    it "disables rubygems and yjit by default" do
+    it "disables rubygems and yjit by default", :aggregate_failures do
       line = described_class.new.without_rubygems.without_yjit.to_alias
       expect(line).to include("--disable-gems")
       expect(line).not_to include("--yjit")

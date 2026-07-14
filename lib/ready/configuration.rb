@@ -1,5 +1,3 @@
-require "pathname"
-
 module Ready
   ##
   # Resolves ready's runtime configuration (paths, prefixes, the readyfile)
@@ -21,7 +19,7 @@ module Ready
 
     def sock_path
       fetched = fetch_env :sock_path do
-        File.expand_path "ready.sock", prefix
+        prefix / "ready.sock"
       end
 
       Pathname(fetched)
@@ -35,7 +33,7 @@ module Ready
 
     def open_readyfile
       fetched = fetch_env :readyfile do
-        File.expand_path ".readyfile", Dir.home
+        Pathname(Dir.home) / ".readyfile"
       end
 
       Readyfile.open(fetched, build_dir:)
@@ -43,19 +41,20 @@ module Ready
 
     def fetch_env(key, default: nil, &block)
       key = key.to_s.upcase
-      value = ENV.fetch("READY_#{key}") do
-        case [default, block]
-        in String, nil then default
-        in nil, Proc then yield
-        in nil, nil then raise "Expected ENV var #{key} to be found but was not"
-        else
-          raise ArgumentError "args #{key.inspect}, default: #{default.inspect}, block: #{block.inspect} are invalid"
-        end
-      end
-
+      value = ENV.fetch("READY_#{key}") { resolve_fallback(key, default, block) }
       raise "Expected value of #{key} to not be empty" if value.empty?
 
       value
+    end
+
+    def resolve_fallback(key, default, block)
+      case [default, block]
+      in String, nil then default
+      in nil, Proc then block.call
+      in nil, nil then raise "Expected ENV var #{key} to be found but was not"
+      else
+        raise ArgumentError, "args #{key.inspect}, default: #{default.inspect}, block: #{block.inspect} are invalid"
+      end
     end
   end
 end

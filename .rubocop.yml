@@ -17,10 +17,23 @@ plugins:
 
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 4.0
+  # Lint at the gem's supported floor (ready.gemspec's required_ruby_version),
+  # which CI also exercises -- not the 4.0.1 dev pin -- so accidental
+  # 4.0-only syntax is caught rather than shipped to 3.4 users.
+  TargetRubyVersion: 3.4
   Exclude:
-    - bin/*
+    # Stock bundler scripts; bin/bench is ours and stays linted.
+    - bin/console
+    - bin/setup
     - vendor/**/*
+    # Vendored read-only reference copy of an external gem; not this project's
+    # code (it is also gitignored, so CI never sees it).
+    - references/**/*
+    # Standalone runtime helper scripts -- a doc formatter and the rdoc `ri`
+    # patch -- with their own conventions, not the gem's authored library code.
+    - extra/**/*
+    # Gitignored scratch: benchmark run logs and throwaway report-parsing scripts.
+    - log/**/*
     - lib/core_ext/**/*
     - rakelib/project.rb
     - rakelib/project_version.rb
@@ -128,6 +141,12 @@ Claude/MysteryRegex:
 Style/MutableConstant:
   EnforcedStyle: literals
 
+# Data.define subclassing keeps the class body a real class body, so constants
+# holding instances of the class (e.g. Span::TABLE) live where they belong;
+# the block form would bind them lexically to the enclosing namespace.
+Style/DataInheritance:
+  Enabled: false
+
 # Shared test contexts legitimately define many helpers.
 RSpec/MultipleMemoizedHelpers:
   Max: 10
@@ -150,6 +169,35 @@ Style/Documentation:
   Enabled: true
   Exclude:
     - "spec/**/*"
+
+# E2E specs share one expensive by-server across examples via before(:all) and
+# hold it in an instance variable; that is intentional here.
+RSpec/BeforeAfterAll:
+  Exclude:
+    - "spec/e2e/**/*"
+
+RSpec/InstanceVariable:
+  Exclude:
+    - "spec/e2e/**/*"
+
+# E2E examples are longer by nature (shell/server setup + several aggregated
+# structural assertions per example).
+RSpec/ExampleLength:
+  Exclude:
+    - "spec/e2e/**/*"
+
+# The e2e and benchmark suites are grouped by test type, not class namespace,
+# so their paths deliberately do not mirror the described constant.
+RSpec/SpecFilePathFormat:
+  Exclude:
+    - "spec/e2e/**/*"
+    - "spec/bench/**/*"
+
+# Ready::Bench::Report is a waterfall renderer whose job is to write to stdout;
+# it lives under spec/support only so Zeitwerk autoloads it.
+RSpec/Output:
+  Exclude:
+    - "spec/support/bench/**/*"
 
 # Trailing commas in multiline literals and arguments.
 Style/TrailingCommaInArrayLiteral:

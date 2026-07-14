@@ -55,7 +55,7 @@ tounalias=(${${tounfun:t}/#*ready_})
 rc=$?
 
 if (( rc != 0 )); then
-  string="Encountered error(%B$rc%b) while running compilation task. Cannot continue."
+  string="Encountered error(%B$rc%b) while running compilation task. Cannot continue. Run %Bready clobber%b to reset the build, then open a new shell to rebuild."
   __ready_print -c red $string
   __ready_debug error $string
   return $rc

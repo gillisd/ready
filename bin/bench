@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+# Development-only ergonomic wrapper around the proven benchmark rake tasks:
+# flags become the BENCH_* environment and rake bench / bench:verbose do the
+# work. Lives in bin/ and never ships in the gem.
+
+require "bundler/setup"
+require "ready"
+require "zeitwerk"
+
+Zeitwerk::Loader.new.tap do |loader|
+  loader.inflector.inflect("cli" => "CLI")
+  loader.push_dir(Pathname(__dir__).parent / "spec/support", namespace: Ready)
+  loader.setup
+end
+
+Ready::Bench::CLI.start
