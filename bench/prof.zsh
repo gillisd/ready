@@ -26,7 +26,9 @@ bench_harness() {
   emulate -L zsh
   setopt extendedglob
 
-  local run_id= start_time= end_time=
+  # `status` is a read-only zsh special (a synonym for $?), so the exit code
+  # must land in a differently named local or the assignment errors.
+  local run_id= start_time= end_time= exit_code=
 
   run_id=$1
   shift
@@ -35,8 +37,10 @@ bench_harness() {
 
   start_time=${EPOCHREALTIME}
   "$@"
+  exit_code=$?
   end_time=${EPOCHREALTIME}
 
   print -r -- "${run_id} harness_start ${start_time}" >> $READY_MARKS
   print -r -- "${run_id} harness_end ${end_time}" >> $READY_MARKS
+  print -r -- "${run_id} exit_status ${exit_code}" >> $READY_MARKS
 }

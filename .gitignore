@@ -17,3 +17,5 @@ Gemfile.lock
 *.gem
 .rspec_status
 references
+# benchmark run logs
+/log/
