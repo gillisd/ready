@@ -32,6 +32,8 @@ AllCops:
     # Standalone runtime helper scripts -- a doc formatter and the rdoc `ri`
     # patch -- with their own conventions, not the gem's authored library code.
     - extra/**/*
+    # Gitignored scratch: benchmark run logs and throwaway report-parsing scripts.
+    - log/**/*
     - lib/core_ext/**/*
     - rakelib/project.rb
     - rakelib/project_version.rb

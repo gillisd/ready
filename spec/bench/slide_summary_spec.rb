@@ -37,12 +37,14 @@ RSpec.describe Ready::Bench::SlideSummary do
     expect(milliseconds_for("rubygems")).to eq(5)
   end
 
-  it "slots the rbenv shim after the shell only when its overhead was measured", :aggregate_failures do
+  it "orders the layers with the rbenv shim after the shell", :aggregate_failures do
     expect(summary.lines.map(&:label)).to eq(
       ["shell", "rbenv shim", "ruby vm boot", "rubygems", "activate deps", "the tool"],
     )
     expect(milliseconds_for("rbenv shim")).to eq(40)
+  end
 
+  it "omits the rbenv shim when no overhead was measured" do
     without_shim = described_class.new(cold:, rbenv_shim_overhead: nil)
     expect(without_shim.lines.map(&:label)).not_to include("rbenv shim")
   end
