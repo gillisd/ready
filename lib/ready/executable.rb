@@ -36,13 +36,21 @@ module Ready
     def render
       stream = StringIO.new
       stream.puts
-      stream.puts(
-        <<~RUBY,
-          Process.setproctitle #{name.inspect}
-        RUBY
-      )
+      stream.puts(prologue)
       stream.puts(source)
       stream.string
+    end
+
+    # Runs before the dispatched CLI. Besides the process title, it disables
+    # the test/unit auto-runner: when the persistent server has test/unit
+    # loaded, its at_exit runner parses the process ARGV, so any option the CLI
+    # leaves there is rejected ("invalid option: --foo"). A dispatched CLI is
+    # never a test run, so switch the runner off.
+    def prologue
+      <<~RUBY
+        Test::Unit::AutoRunner.need_auto_run = false if defined?(Test::Unit::AutoRunner)
+        Process.setproctitle #{name.inspect}
+      RUBY
     end
 
     def path
