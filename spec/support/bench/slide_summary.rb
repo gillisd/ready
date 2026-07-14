@@ -4,8 +4,10 @@ module Ready
     # The cold-startup breakdown condensed to the few layers an audience can
     # hold at once -- the version meant for a slide. Each line pairs a plain
     # label with the cold arm's floor (minimum) milliseconds for the matching
-    # span(s): Ruby's interpreter boot rides under "rubygems" (the phase people
-    # know by that name). Using the floor -- the same statistic the headline's
+    # span. The Ruby VM boot is its own line, kept separate from "rubygems": both
+    # arms pay the boot (ready's by client boots a VM too), but only the cold arm
+    # loads rubygems -- folding them would falsely imply ready eliminates the
+    # boot. Using the floor -- the same statistic the headline's
     # cold total uses -- keeps the layers summing to that total rather than
     # overshooting it (median layers can exceed the whole once a tool drags in a
     # big dependency graph); the tiny reap and the slack between the layer
@@ -30,7 +32,8 @@ module Ready
 
       LAYERS = [
         Layer.new(label: "shell", spans: [:shell]),
-        Layer.new(label: "rubygems", spans: [:launch, :rubygems]),
+        Layer.new(label: "ruby vm boot", spans: [:launch]),
+        Layer.new(label: "rubygems", spans: [:rubygems]),
         Layer.new(label: "activate deps", spans: [:activation]),
         Layer.new(label: "the tool", spans: [:tool_run]),
       ].freeze
