@@ -6,7 +6,8 @@ module Ready
     # Compiles ready stubs and prints them to stdout, or compiles everything via
     # rake:
     #
-    # * `ready compile all`: compile every stub (`rake ready:compile`)
+    # * `ready compile` / `ready compile all`: compile every stub
+    #   (`rake ready:compile`) -- bare `compile` defaults to `all`, like `make`
     # * `ready compile by`: the persistent `by` client alias
     # * `ready compile NAME ...`: a zsh function stub per CLI name
     #
@@ -15,7 +16,7 @@ module Ready
     class Compile < CommandKit::Command
       include RakeCommand
 
-      usage "[options] {all | by | NAME [NAME ...]}"
+      usage "[options] [all | by | NAME [NAME ...]]"
 
       option :environment, short: "-e",
                            value: {
@@ -37,14 +38,15 @@ module Ready
       option :yjit, long: "--[no-]yjit",
                     desc: "(by only) Enable YJIT. Off by default"
 
-      argument :names, required: true,
+      argument :names, required: false,
                        repeats: true,
                        usage: "all | by | NAME",
-                       desc: "`all`, `by`, or one or more CLI names to compile"
+                       desc: "`all` (the default when omitted), `by`, or one or more CLI names to compile"
 
       description "Compile ready stubs for the given CLI name(s)"
 
       examples [
+        "",
         "all",
         "by --yjit",
         "irb rspec",
@@ -71,8 +73,8 @@ module Ready
       #
       def run(*names)
         case names
-        in ["all"] then rake("ready:compile")
-        in ["by"]  then print by_alias
+        in [] | ["all"] then rake("ready:compile")
+        in ["by"] then print by_alias
         else
           reject_reserved_names!(names)
           print gem_script(names)
