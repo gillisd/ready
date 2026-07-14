@@ -26,5 +26,9 @@ reready() {
   yes | command gem uninstall ready || true
   command bundle exec rake clobber
   command bundle exec rake build
-  command gem install pkg/ready*
+  command gem install \
+    --conservative \
+    --no-document \
+    --no-update-sources \
+    --local pkg/ready*
 }
