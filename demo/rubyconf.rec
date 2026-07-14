@@ -31,3 +31,10 @@ Title: ready compile should default to all - shouldn't be required
 Desc:
 Owner: me
 Status: open
+
+Id: 2
+Updated: Mon, 13 Jul 2026 22:06:59 -0500
+Title: Interesting quirks
+Desc: 1. bundler/setup and bundle exec were causing major issues, took a lot of debugging but eventually traced the RUBYOPT env var being set by bundler. the zsh stubs surgically remove that env variable before loading the stub (doesn't affect global env, just the run)
+Owner: me
+Status: open
