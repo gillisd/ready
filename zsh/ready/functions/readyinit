@@ -23,6 +23,11 @@ if ! [[ -f $compiledpath ]]; then
   return 1
 fi
 
+# Not exposed publicly yet, but this decides during the `autoload -Uz -w` of the zwc wordcode file whether or not to add the +X flag.
+# If enabled, pay a (small) penalty on `ready init`, for consistent performance on the first command call
+# If disabled, `ready init` is faster, but lazy load the source from the zwc on the first command call
+typeset -gx READY_ZSH_EAGER_LOAD=1
+
 # Point the `by` client at the ready server's socket. Gem stubs set BY_SOCKET
 # inline per call, but the bare `by`/`ready_by` command relies on the env; the
 # by client otherwise defaults to ~/.by_socket and can't reach the server.
@@ -39,7 +44,12 @@ __ready_debug debug "Now running zcompile..."
 # this loads the entire ready.zwc package in one call, and creates autoload stubs
 # for each of the ready_* functions. They will be fully loaded upon being called for the first
 # time.
-builtin autoload -w -Uz $compiledpath
+if (( READY_ZSH_EAGER_LOAD == 1 )); then
+  builtin autoload -w +X -Uz $compiledpath
+else
+  builtin autoload -w -Uz $compiledpath
+fi
+
 __ready_debug debug "Zcompile done"
 
 for fn in $noncompletions; do
