@@ -48,14 +48,20 @@ RSpec.describe Ready::CLI::Compile do
     end
   end
 
-  describe "`all`" do
-    it "delegates to the ready:compile rake task" do
-      command = described_class.new(stdout: StringIO.new, stderr: StringIO.new)
-      allow(command).to receive(:rake)
+  describe "`all`, the default" do
+    def compile_via_run(*names)
+      described_class.new(stdout: StringIO.new, stderr: StringIO.new).tap do |command|
+        allow(command).to receive(:rake)
+        command.run(*names)
+      end
+    end
 
-      command.run("all")
+    it "delegates `all` to the ready:compile rake task" do
+      expect(compile_via_run("all")).to have_received(:rake).with("ready:compile")
+    end
 
-      expect(command).to have_received(:rake).with("ready:compile")
+    it "defaults to compiling everything when given no names, like `make`" do
+      expect(compile_via_run).to have_received(:rake).with("ready:compile")
     end
   end
 
@@ -70,12 +76,6 @@ RSpec.describe Ready::CLI::Compile do
       _output, status, stderr = run_compile("all", "irb")
       expect(status).to eq(1)
       expect(stderr).to include("cannot be combined")
-    end
-
-    it "exits with an insufficient-arguments error when given no arguments", :aggregate_failures do
-      _output, status, stderr = run_compile
-      expect(status).to eq(1)
-      expect(stderr).to include("insufficient number of arguments")
     end
   end
 end
