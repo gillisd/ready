@@ -1,0 +1,10 @@
+# gems: are preloaded into the warm by-server, which does `require <entry>`
+# verbatim -- so each entry must be a REQUIRE PATH, not a gem name. Both the
+# ronin library (`require "ronin"`) and ronin-support (`require "ronin/support"`,
+# NOT "ronin-support", which is a LoadError) are preloaded so the ronin CLI's
+# own code is already warm in the server, not just its support library.
+gems:
+  - ronin
+  - ronin/support
+executables:
+  - ronin
