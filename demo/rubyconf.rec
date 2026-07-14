@@ -1,0 +1,26 @@
+%rec: Issue
+%key: Id
+%typedef: text_t regexp /^.*$/
+%typedef: Owner_t enum me claude
+%typedef: Status_t enum open in_progress complete
+%type: Id int
+%type: Title line
+%type: Desc text_t
+%type: Owner Owner_t
+%type: Status Status_t
+%type: Updated date
+%auto: Id Updated
+%mandatory: Title Desc Owner Status
+
+Id: 0
+Updated: Mon, 13 Jul 2026 20:59:56 -0500
+Title: Tough items still not figured out
+Desc: 
++ 1. By needs a few patches: 
++   a. Need to provide process substitution support - the process sub fds also need to be passed via send_io
++ 2. Interactives like ssh, fzf, irb and friends can be unpredictable and extremely difficult to debug/test
++   a. kamal ssh not working e2e
++   b. irb occasionally spits out bizarre errors
++   c. SIGINT currently kills the whole process, rather than propogating to the interactive
+Owner: me
+Status: open
