@@ -24,3 +24,10 @@ Desc:
 +   c. SIGINT currently kills the whole process, rather than propogating to the interactive
 Owner: me
 Status: open
+
+Id: 1
+Updated: Mon, 13 Jul 2026 21:08:41 -0500
+Title: ready compile should default to all - shouldn't be required
+Desc:
+Owner: me
+Status: open
