@@ -13,21 +13,30 @@ module Ready
       end
 
       def run(id)
-        Run.new(id:, mark_times: mark_times_for(id))
+        lines = lines_for(id)
+        Run.new(id:, mark_times: mark_times(lines), exit_status: exit_status(lines))
       end
 
       private
 
+      def lines_for(id)
+        return [] unless path.exist?
+
+        path.readlines.map(&:split).select { |line| line.length == 3 && line.first == id }
+      end
+
       # A malformed line (e.g. a mark whose shell left the timestamp empty) is
       # skipped rather than crashing the run: the span that needed it simply
-      # goes unmeasured.
-      def mark_times_for(id)
-        return {} unless path.exist?
+      # goes unmeasured. The exit_status line is not a timestamp, so it is
+      # excluded here and read separately.
+      def mark_times(lines)
+        lines.reject { |line| line[1] == "exit_status" }
+             .to_h { |_run_id, mark_name, seconds| [mark_name.to_sym, Float(seconds)] }
+      end
 
-        path.readlines
-            .map(&:split)
-            .select { |fields| fields.length == 3 && fields.first == id }
-            .to_h { |_run_id, mark_name, seconds| [mark_name.to_sym, Float(seconds)] }
+      def exit_status(lines)
+        status = lines.find { |line| line[1] == "exit_status" }
+        status && Integer(status[2])
       end
     end
   end

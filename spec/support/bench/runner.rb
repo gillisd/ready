@@ -19,6 +19,7 @@ module Ready
         @protocol = protocol
         @rbenv = rbenv
         @progress = progress || Progress.new(command: protocol.invocation)
+        @harness_log = HarnessLog.new(invocation: protocol.invocation)
         @cold_result = ArmResult.new(name: :cold, warmups: protocol.warmups)
         @hot_result = ArmResult.new(name: :hot, warmups: protocol.warmups)
         @rbenv_launch_samples = []
@@ -35,6 +36,7 @@ module Ready
       end
 
       def call
+        @harness_log.open!
         @progress.building
         build
         run_schedule
@@ -169,9 +171,11 @@ module Ready
         end
       end
 
+      # The measured command, teed through the harness log so a tool that fails
+      # silently leaves evidence instead of being timed as a fast "success".
       def harness_command(run_id, command_word)
         workload = [command_word, *@protocol.arguments].join(" ")
-        "bench_harness #{run_id} -- #{workload} >/dev/null 2>&1"
+        @harness_log.tee(run_id, "bench_harness #{run_id} -- #{workload}")
       end
 
       def hot_setup(run_id)
@@ -189,7 +193,17 @@ module Ready
       # observed for the harness command.
       def measurement_for(run_id, harness_run)
         run = @marks_log.run(run_id)
+        verify_succeeded!(run)
         Measurement.new(waterfall: Waterfall.of(run), wall_clock_seconds: harness_run.wall_clock_seconds)
+      end
+
+      # A run whose tool crashed (non-zero exit) or vanished (no status) aborts
+      # the whole benchmark instead of being timed as a fast "success". The
+      # failing command's output is in log/bench.log.
+      def verify_succeeded!(run)
+        return if run.succeeded?
+
+        raise "benchmark run #{run.id} #{run.failure_reason} -- see #{@harness_log.path}"
       end
 
       def derive_rbenv_shim_overhead
