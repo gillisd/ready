@@ -77,3 +77,9 @@ Created: Sat, 18 Apr 2026 10:36:11 -0400
 Name: Why are functions in zwc prefixed with their full absolute paths?
 Summary: Things appear to be working, possibly by accident. I should investigate this further
 Status: open
+
+Id: 4
+Created: Thu, 16 Jul 2026 10:11:35 -0700
+Name: ruby version leaks into .gem release
+Summary: .ruby-version should not be leaking into the gem release
+Status: open
