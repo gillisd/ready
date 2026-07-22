@@ -83,3 +83,29 @@ Created: Thu, 16 Jul 2026 10:11:35 -0700
 Name: ruby version leaks into .gem release
 Summary: .ruby-version should not be leaking into the gem release
 Status: open
+
+Id: 5
+Created: Wed, 22 Jul 2026 09:20:23 -0400
+Name: Receiving "cannot find Could not find activesupport-8.1.3, bigdecimal-4.1.2 in locally installed gems Run bundle install" despite rubyopt cleaning
+Summary: Running a ready'd cli produced that error when run in a dir containing a Gemfile. Some context:
++ 
++ ```zsh
++ # zed -f ready_rstore
++ 
++ ...
++ 
++ 'Warning\[:experimental\]\ \=\ false'
++ 'gemfile\ \=\ File.expand_path\(\"../Gemfile\",\ __dir__\)'
++ 
++ ''
++ 'if\ File.exist\?\(gemfile\)'
++ '\ \ ENV\[\"BUNDLE_GEMFILE\"\]\ \|\|\=\ gemfile'
++ '\ \ require\ \"bundler/setup\"'
++ 'end'
++ 
++ ...
++ ```
++ 
++ 1. ready is currently breaking if bundler/setup is required within the ruby portion of the shim, even though it cleans RUBYOPT
++ 2. binding.irb shows that __dir__ is being evaluated to a directory completely unrelated to this CLI. __dir__ is being evaluated to workdir, rather than a fixed dir, and there happens to be a Gemfile at ../Gemfile relative to my current workdir
+Status: open
