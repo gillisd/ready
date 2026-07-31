@@ -10,6 +10,7 @@ trap 'local rc=$?; local str="$0: Something went wrong initialzing ready"; __rea
 autoload -Uz __ready_debug
 
 local fn
+local strategy
 local compiledpath=$READY_PREFIX/builds.zwc
 local possible_basename
 local possible_declared_completion_fn
@@ -74,4 +75,9 @@ for fn in $noncompletions; do
     __ready_debug info "RUN compdef _${possible_basename} $fn"
     compdef _${possible_basename} $fn
   fi
+done
+
+for strategy in $READY_ZSH_SRC_DIR/strategies/*(.:A); do
+  __ready_debug info "RUN source $strategy"
+  source $strategy
 done

@@ -13,6 +13,7 @@
   typeset -gx READY_LOG_PATH=${READY_LOG_PATH:-${READY_PREFIX}/ready.log}
   typeset -gx READY_DEBUG=${READY_DEBUG:-0}
   typeset -gx READY_SRC_DIR=${__DIR__:h:h}
+  typeset -gx READY_ZSH_SRC_DIR=${__DIR__}
   typeset -gx READY_SOCK_PATH=${READY_SOCK_PATH:-${READY_PREFIX}/ready.sock}
 
   if ! [[ -d $READY_PREFIX ]]; then
