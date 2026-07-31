@@ -8,7 +8,6 @@ setopt extendedglob warncreateglobal warnnestedvar localtraps
 trap 'local rc=$?; local str="$0: Something went wrong initialzing ready"; __ready_debug error $str; return $rc' ZERR
 
 autoload -Uz __ready_debug
-autoload -Uz compdef
 
 local fn
 local compiledpath=$READY_PREFIX/builds.zwc
